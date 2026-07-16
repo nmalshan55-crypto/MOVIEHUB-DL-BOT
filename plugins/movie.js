@@ -1,504 +1,267 @@
-// Full Body Creater= Liyanaarachchi Avishka
-// pixaldrain , mega download succusfully added 
-
-const { cmd } = require("../command");
+const { cmd } = require('../command');
 const axios = require('axios');
-const NodeCache = require('node-cache');
-const fs = require('fs');
-const fsp = require('fs').promises;
-const path = require('path');
-const { File } = require('megajs'); // Added for MEGA integration
 
-// Cache initialization with 1 minute TTL
-const searchCache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
 
-// Simplified theme for details card
-const simpleTheme = {
-  box: function(title, content) {
-    return `ðŸŽ¬ Movie Hub ðŸŽ¬\n\n${title}\n\n${content}`;
-  },
-  getForwardProps: function() {
-    return {
-      contextInfo: {
-        forwardingScore: 999,
-        isForwarded: true,
-        stanzaId: "BAE5" + Math.random().toString(16).substr(2, 12).toUpperCase(),
-        mentionedJid: [],
-        conversionData: {
-          conversionDelaySeconds: 0,
-          conversionSource: "movie_hub",
-          conversionType: "message"
-        }
-      }
-    };
-  },
-  resultEmojis: ["ðŸ“½ï¸", "ðŸŽ¥", "ðŸŽ¬", "ðŸ“½ï¸", "ðŸŽžï¸"]
-};
 
-// Temporary file path for downloading
-const tempDir = path.join(__dirname, 'temp');
-const ensureTempDir = async () => {
-  try {
-    await fsp.mkdir(tempDir, { recursive: true });
-  } catch (err) {
-    console.error(`[01:54 PM +0530] Failed to create temp directory: ${err.message}`);
-  }
-};
-
-// MEGA download helper function
-async function downloadFromMega(conn, megaUrl, from, qualityMessage, selectedFilm, selectedLink) {
-  try {
-    await ensureTempDir();
-    console.log(`[01:54 PM +0530] Processing MEGA URL: ${megaUrl}`);
-    const file = File.fromURL(megaUrl);
-
-    // Load file attributes
-    await file.loadAttributes();
-    console.log(`[01:54 PM +0530] File attributes loaded: ${file.name}, Size: ${file.size} bytes`);
-
-    // Check file size against WhatsApp limit (2GB = 2,147,483,648 bytes)
-    const maxSize = 2 * 1024 * 1024 * 1024;
-    if (file.size > maxSize) {
-      return conn.sendMessage(from, {
-        text: simpleTheme.box("Size Error", 
-          `File size (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds WhatsApp's 2GB limit.`),
-        ...simpleTheme.getForwardProps()
-      }, { quoted: qualityMessage });
-    }
-
-    // Notify user of download start
-    await conn.sendMessage(from, {
-      text: simpleTheme.box("Download Started", 
-        `Downloading ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)...`),
-      ...simpleTheme.getForwardProps()
-    }, { quoted: qualityMessage });
-
-    // Download the file
-    const tempFilePath = path.join(tempDir, file.name.replace(/[^\w\s.]/gi, '_'));
-    let downloadAttempt = 0;
-    const maxAttempts = 4;
-    let downloadedSize = 0;
-    let lastProgressUpdate = 0;
-
-    while (downloadAttempt < maxAttempts) {
-      const writer = fs.createWriteStream(tempFilePath);
-      const stream = file.download({ timeout: 600000 }); // 10-minute timeout
-
-      stream.on('data', (chunk) => {
-        downloadedSize += chunk.length;
-        const progress = (downloadedSize / file.size * 100).toFixed(1);
-        if (Date.now() - lastProgressUpdate > 30000) { // Update every 30 seconds
-          console.log(`[01:54 PM +0530] Download progress: ${progress}% (${downloadedSize} bytes)`);
-          conn.sendMessage(from, {
-            text: simpleTheme.box("Download Progress", 
-              `${file.name}: ${progress}% completed`),
-            ...simpleTheme.getForwardProps()
-          }, { quoted: qualityMessage });
-          lastProgressUpdate = Date.now();
-        }
-      });
-
-      stream.on('error', (error) => {
-        console.error(`[01:54 PM +0530] Stream error on attempt ${downloadAttempt + 1}: ${error.message}`);
-        writer.end();
-      });
-
-      stream.pipe(writer);
-
-      await new Promise((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-      });
-
-      const fileStats = await fsp.stat(tempFilePath);
-      if (Math.abs(fileStats.size - file.size) < 1024 * 10 || fileStats.size >= file.size) {
-        break;
-      } else {
-        downloadAttempt++;
-        await fsp.unlink(tempFilePath);
-        console.log(`[01:54 PM +0530] Attempt ${downloadAttempt}/${maxAttempts} failed, size ${fileStats.size} bytes, retrying...`);
-        if (downloadAttempt === maxAttempts) {
-          throw new Error(`Downloaded file size (${fileStats.size} bytes) does not match expected (${file.size} bytes) after ${maxAttempts} attempts`);
-        }
-      }
-    }
-
-    const finalStats = await fsp.stat(tempFilePath);
-    if (finalStats.size < file.size) {
-      await fsp.unlink(tempFilePath);
-      throw new Error(`Downloaded file size (${finalStats.size} bytes) does not match expected (${file.size} bytes)`);
-    }
-
-    // Send the file as a document
-    await conn.sendMessage(from, {
-      document: { url: tempFilePath },
-      mimetype: file.mimeType || "application/octet-stream",
-      fileName: file.name,
-      caption: `ðŸŽ¬ ${selectedFilm.title} (${selectedFilm.year})\n\nQuality: ${selectedLink.quality}\nSize: ${(file.size / (1024 * 1024)).toFixed(2)} MB\n\nDownloaded from MEGA!`,
-      ...simpleTheme.getForwardProps()
-    }, { quoted: qualityMessage });
-
-    await conn.sendMessage(from, { 
-      react: { 
-        text: simpleTheme.resultEmojis[Math.floor(Math.random() * simpleTheme.resultEmojis.length)], 
-        key: qualityMessage.key 
-      } 
-    });
-
-    // Clean up temporary file
-    await fsp.unlink(tempFilePath);
-    console.log(`[01:54 PM +0530] Successfully sent ${file.name} and cleaned up`);
-  } catch (e) {
-    console.error("[01:54 PM +0530] Error in MEGA download:", e);
-    await conn.sendMessage(from, {
-      text: simpleTheme.box("Error", 
-        `Sorry, an error occurred:\n\n${e.message || "Unknown error"}\n\nPlease try again later`),
-      ...simpleTheme.getForwardProps()
-    }, { quoted: qualityMessage });
-    await conn.sendMessage(from, { react: { text: "âŒ", key: qualityMessage.key } });
-  }
-}
-
-// Film search and download command
 cmd({
-  pattern: "film3",
-  react: "ðŸŽ¬",
-  desc: "Get Movies from Movie Hub to Enjoy Cinema",
-  category: "Movie Hub",
-  filename: __filename,
-}, async (conn, mek, m, { from, q, pushname, reply }) => {
-  if (!q) {
-    return reply(simpleTheme.box("Sinhala Sub Movie", 
-      "Use: .film <film name>\nâœ¨ Ex: .film 2025\nMovie Hub List"));
-  }
+    pattern: "cinesubz",
+    alias: ["cinetv"],
+    desc: "Search and download movies or TV shows from CineSubz",
+    category: "download",
+    react: "🎥",
+    
+},
+async (socket, msg, m, { from, args }) => {
+    const sender = from;
+    const DEFAULT_FOOTER = `\n\n> 🎭 𝗠𝗢𝗩𝗜𝗘𝗛𝗨𝗕╺ 𝗗𝗟 𝗖𝗜𝗡𝗘𝗛𝗨𝗕 🎭\n> 🧬 ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴍᴏᴠɪᴇʜᴜʙ-ᴅʟ`;
 
-  try {
-    await ensureTempDir();
-
-    // Step 1: Check cache for movie info
-    const cacheKey = `film_search_${q.toLowerCase()}`;
-    let searchData = searchCache.get(cacheKey);
-
-    if (!searchData) {
-      const searchUrl = `https://searchsub.netlify.app/api/search/search?text=${encodeURIComponent(q)}`;
-      let retries = 3;
-      
-      while (retries > 0) {
-        try {
-          console.log(`[01:54 PM +0530] Attempting search API call to ${searchUrl}`);
-          const searchResponse = await axios.get(searchUrl, { timeout: 15000 });
-          console.log("[01:54 PM +0530] Raw search response:", JSON.stringify(searchResponse.data, null, 2));
-          
-          searchData = searchResponse.data.filter(item => item.status === 200);
-          
-          if (!Array.isArray(searchData) || searchData.length === 0) {
-            console.log("[01:54 PM +0530] Search API returned empty or invalid data after filtering:", searchData);
-            throw new Error("No movies found or invalid response from search API");
-          }
-          
-          searchCache.set(cacheKey, searchData);
-          console.log(`[01:54 PM +0530] Successfully fetched ${searchData.length} movies`);
-          break;
-        } catch (error) {
-          retries--;
-          console.error(`[01:54 PM +0530] Search API call failed (attempt ${4 - retries}/3): ${error.message}`, error.response?.data || "No response data");
-          if (retries === 0) throw new Error("Failed to fetch movie list after multiple attempts");
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-      }
+    if (!args.length) {
+        await socket.sendMessage(sender, {
+            text: `*❪ ERROR ❫*\n\n⚠️ *Invalid Usage!*\n\n🎬 *Example:*
+• .cinetv spider man
+• .cinesubz game of thrones\n\n📝 _Please provide the Movie_ _or TV Series name!_${DEFAULT_FOOTER}`
+        }, { quoted: msg });
+        return;
     }
 
-    // Step 2: Format movie list
-    let filmList = `sá´œÊ™.ÊŸá´‹ á´á´á´ Éªá´‡ Ê€á´‡sá´œÊŸá´›s.\n\n`;
-    filmList += `ðŸ”sá´‡á´€Ê€á´„Êœ: ${q}\n\n`;
-    filmList += `â­•.Ê€á´‡á´˜ÊŸÊ á´¡Éªá´›Êœ É´á´œá´Ê™á´‡Ê€ á´Ò“ á´›Êœá´‡ á´á´á´ Éªá´‡ Êá´á´œ á´¡á´€É´á´›:\n\n`;
-
-    const films = searchData.slice(0, 10).map((film, index) => ({
-      number: index + 1,
-      title: film.title || `Untitled Movie ${index + 1}`,
-      year: film.year || "N/A",
-      link: film.url || `https://sub.lk/movies/${film.title.toLowerCase().replace(/ /g, '-')}-${film.year || '2025'}-sinhala-sub`,
-      image: film.image || "https://i.ibb.co/5Yb4VZy/snowflake.jpg",
-      imdb: film.ratings?.imdb || 'N/A'
-    }));
-
-    films.forEach(film => {
-      console.log(`[01:54 PM +0530] Movie ${film.number}: ${film.title} (Link: ${film.link})`);
-      filmList += `${film.number}. ${film.title} (${film.year})\n`;
+    const cinesubQuery = args.join(' ');
+    await socket.sendMessage(sender, { 
+        text: `*❪ SEARCHING ❫*\n\n🔍 *Searching Cinesubz...*\n⚡ _Please wait a moment._`
     });
 
-    filmList += `\n*á´˜á´á´¡á´‡á´€Ê€á´… Ê™Ê á´›á´„á´„ á´›á´‡á´€á´*`;
+    const API_BASE = "https://chama-movie-api.koyeb.app";
+    const API_KEY = "chama_api_b3aa7aedc781b88f642bc05d6b5558a1"; // ඔබේ API Key එක දාන්න
+    const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=500";
 
-    // Step 3: Send movie list
-    const sentMessage = await conn.sendMessage(from, {
-      text: filmList,
-      ...simpleTheme.getForwardProps()
-    }, { quoted: mek });
+    try {
+        const searchResponse = await axios.get(`${API_BASE}/api/v1/movie/cinesubz/search?q=${encodeURIComponent(cinesubQuery)}&api_key=${API_KEY}`);
+        const searchData = searchResponse.data;
 
-    // Step 4: Wait for movie selection
-    const filmSelectionHandler = async (update) => {
-      const message = update.messages[0];
-      if (!message?.message?.extendedTextMessage) return;
-
-      const userReply = message.message.extendedTextMessage.text.trim();
-      if (message.message.extendedTextMessage.contextInfo?.stanzaId !== sentMessage.key.id) return;
-
-      const selectedNumber = parseInt(userReply);
-      const selectedFilm = films.find(film => film.number === selectedNumber);
-
-      if (!selectedFilm) {
-        await conn.sendMessage(from, {
-          text: simpleTheme.box("Invalid Selection", 
-            "Please select a valid number from the list"),
-          ...simpleTheme.getForwardProps()
-        }, { quoted: message });
-        return;
-      }
-
-      console.log(`[01:54 PM +0530] Selected movie: ${selectedFilm.title} (Link: ${selectedFilm.link})`);
-      // Remove film selection listener
-      conn.ev.off("messages.upsert", filmSelectionHandler);
-
-      let details = null;
-      let thumbnailUrl = selectedFilm.image;
-
-      try {
-        // Step 5: Get movie details
-        const detailsUrl = `https://detailssub.netlify.app/api/details/functions?url=${encodeURIComponent(selectedFilm.link)}`;
-        console.log(`[01:54 PM +0530] Attempting details API call to ${detailsUrl}`);
-        const detailsResponse = await axios.get(detailsUrl, { timeout: 15000 });
-        console.log("[01:54 PM +0530] Raw details response:", JSON.stringify(detailsResponse.data, null, 2));
-        details = detailsResponse.data;
-
-        if (!details || !details.title) {
-          throw new Error("Failed to fetch movie details or invalid response");
+        if (!searchData.status || !searchData.data || searchData.data.length === 0) {
+            await socket.sendMessage(sender, {
+                text: `*❪ NO RESULTS ❫*\n\n😞 *No Results Found!*\n\n🎬 *Query:* _${cinesubQuery}_\n💡 *Tip:* _Please check the spelling and try again!_${DEFAULT_FOOTER}`
+            }, { quoted: msg });
+            return;
         }
 
-        // Step 6: Select highest quality thumbnail from imageLinks
-        if (details.imageLinks && details.imageLinks.length > 0) {
-          thumbnailUrl = details.imageLinks[details.imageLinks.length - 1];
-          console.log(`[01:54 PM +0530] Selected thumbnail: ${thumbnailUrl}`);
-        }
-      } catch (detailsError) {
-        console.error(`[01:54 PM +0530] Details error: ${detailsError.message}`);
-        details = {
-          title: selectedFilm.title,
-          imdb: selectedFilm.imdb || 'N/A',
-          description: 'No description available',
-          movieUrl: selectedFilm.link
-        };
-      }
+        const cinesubResults = searchData.data.slice(0, 25);
+        let listText = `*❪ SEARCH RESULTS ❫*\n\n🎯 *Query:* _${cinesubQuery}_\n📊 *Results:* _${cinesubResults.length} Items_\n\n*👇 SELECT A NUMBER 👇*\n\n`;
 
-      // Step 7: Display details card with high-quality thumbnail
-      let detailsCard = `âš•ï¸*á´á´á´ Éªá´‡ á´…á´‡á´›á´€ÉªÊŸs* â™‚\n\n`;
-      detailsCard += `*á´›Éªá´›ÊŸá´‡*: ${details.title}\n`;
-      detailsCard += `*Éªá´á´…Ê™*: ${details.imdb}\n`;
-      detailsCard += `*á´…á´‡sá´„Ê€Éªá´˜á´›Éªá´É´*: ${details.description}\n`;
-      detailsCard += `\nðŸ”— *á´á´á´ Éªá´‡ á´œÊ€ÊŸ*: ${details.movieUrl}\n`;
+        cinesubResults.forEach((item, index) => {
+            const typeIcon = item.type === 'tvshows' ? '📺' : '🎥';
+            const num = (index + 1) < 10 ? `0${index + 1}` : `${index + 1}`;
+            listText += `*${num}* ➜ ${typeIcon} _${item.title.substring(0, 30)}_\n`;
+        });
 
-      await conn.sendMessage(from, {
-        image: { url: thumbnailUrl },
-        caption: simpleTheme.box("Movie Details", detailsCard),
-        ...simpleTheme.getForwardProps()
-      }, { quoted: message });
+        listText += `${DEFAULT_FOOTER}`;
+        
+        const sentMsg = await socket.sendMessage(sender, { text: listText }, { quoted: msg });
+        const messageID = sentMsg.key.id;
 
-      // Step 8: Get download links automatically
-      const downloadUrl = `https://downsub.netlify.app//api/download/functions?url=${encodeURIComponent(details.movieUrl || selectedFilm.link)}`;
-      console.log(`[01:54 PM +0530] Attempting download API call to ${downloadUrl}`);
-      let downloadData;
-      let downloadRetries = 3;
+        const handleSelection = async ({ messages: replyMessages }) => {
+            const replyMek = replyMessages[0];
+            if (!replyMek?.message) return;
 
-      while (downloadRetries > 0) {
-        try {
-          const downloadResponse = await axios.get(downloadUrl, { timeout: 15000 });
-          console.log("[01:54 PM +0530] Raw download response:", JSON.stringify(downloadResponse.data, null, 2));
-          downloadData = downloadResponse.data;
+            const messageType = replyMek.message.conversation || replyMek.message.extendedTextMessage?.text;
+            const isReplyToSentMsg = replyMek.message.extendedTextMessage?.contextInfo?.stanzaId === messageID;
 
-          if (downloadData.status !== 200 || !Array.isArray(downloadData.downloadLinks) || downloadData.downloadLinks.length === 0) {
-            throw new Error("No download links available or invalid response");
-          }
-          break;
-        } catch (error) {
-          downloadRetries--;
-          console.error(`[01:54 PM +0530] Download API call failed (attempt ${4 - downloadRetries}/3): ${error.message}`, error.response?.data || "No response data");
-          if (downloadRetries === 0) throw error;
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-      }
-
-      // Step 9: Display download menu list with redirectUrl
-      const downloadLinks = downloadData.downloadLinks.map((link, i) => ({
-        number: i + 1,
-        quality: link.quality,
-        size: link.size,
-        url: link.redirectLink
-      }));
-
-      let downloadOptions = `ðŸ“¥ *á´…á´á´¡É´ÊŸá´á´€á´… á´á´˜á´›Éªá´É´ Ò“á´Ê€ ${selectedFilm.title} (${selectedFilm.year})* ðŸ“¥\n\n`;
-      downloadOptions += `ðŸŽ¬ *á´€á´ á´€ÉªÊŸÊ™ÊŸá´‡ Ç«á´œá´€ÊŸÉªá´›Ê Ê™á´œá´›á´›á´É´s*:\n\n`;
-
-      downloadLinks.forEach(link => {
-        downloadOptions += `${link.number}. ${link.quality} (${link.size}) - Redirect: ${link.url}\n`;
-      });
-
-      downloadOptions += `\nÊ€á´‡á´˜ÊŸÊ Ç«á´œÊŸÊŸÉªá´›Ê Ê™á´œá´›á´›á´É´s. á´€Ò“á´›á´‡Ê€ á´á´á´ Éªá´‡ á´…á´á´¡É´ÊŸá´á´€á´…á´‡á´….`;
-      downloadOptions += `\n*á´˜á´á´¡á´‡á´€Ê€á´… Ê™Ê á´›á´„á´„ á´›á´‡á´€á´.*`;
-
-      const downloadButtonMessage = await conn.sendMessage(from, {
-        image: { url: thumbnailUrl },
-        caption: simpleTheme.box("Download Qualities", downloadOptions),
-        ...simpleTheme.getForwardProps()
-      }, { quoted: message });
-
-      // Step 10: Wait for quality selection
-      const qualitySelectionHandler = async (updateQuality) => {
-        const qualityMessage = updateQuality.messages[0];
-        if (!qualityMessage?.message?.extendedTextMessage) return;
-
-        const qualityReply = qualityMessage.message.extendedTextMessage.text.trim();
-        if (qualityMessage.message.extendedTextMessage.contextInfo?.stanzaId !== downloadButtonMessage.key.id) return;
-
-        console.log(`[01:54 PM +0530] Quality reply received: ${qualityReply}`);
-
-        const selectedQualityNumber = parseInt(qualityReply);
-        const selectedLink = downloadLinks.find(link => link.number === selectedQualityNumber);
-
-        if (!selectedLink) {
-          console.log(`[01:54 PM +0530] Invalid quality number selected: ${qualityReply}`);
-          await conn.sendMessage(from, {
-            text: simpleTheme.box("Invalid Quality", 
-              "Please select a valid quality button number"),
-            ...simpleTheme.getForwardProps()
-          }, { quoted: qualityMessage });
-          return;
-        }
-
-        console.log(`[01:54 PM +0530] Selected quality: ${selectedLink.quality} (URL: ${selectedLink.url})`);
-        // Remove quality selection listener
-        conn.ev.off("messages.upsert", qualitySelectionHandler);
-
-        // Step 11: Process redirectUrl through Dark-Yasiya API for PixelDrain or MEGA
-        let finalDownloadUrl = selectedLink.url;
-
-        if (selectedLink.url.includes("pixeldrain.com/u/")) {
-          const downloadUrlDark = `https://www.dark-yasiya-api.site/download/pixeldrain?url=${encodeURIComponent(selectedLink.url)}`;
-          console.log(`[01:54 PM +0530] Attempting Dark-Yasiya API call to ${downloadUrlDark}`);
-          let darkResponse;
-          let darkRetries = 3;
-
-          while (darkRetries > 0) {
-            try {
-              darkResponse = await axios.get(downloadUrlDark, { timeout: 15000 });
-              console.log("[01:54 PM +0530] Raw Dark-Yasiya response:", JSON.stringify(darkResponse.data, null, 2));
-              if (darkResponse.data.status && darkResponse.data.result?.dl_link) {
-                finalDownloadUrl = darkResponse.data.result.dl_link;
-                selectedLink.quality = darkResponse.data.result.fileName.replace(/\.\w+$/, '').split('(')[0].trim();
-                selectedLink.size = (darkResponse.data.result.fileSize / (1024 * 1024)).toFixed(2) + " MB";
-                console.log(`[01:54 PM +0530] Updated download URL to dl_link: ${finalDownloadUrl}`);
-              } else {
-                throw new Error("Invalid response from Dark-Yasiya API");
-              }
-              break;
-            } catch (darkError) {
-              darkRetries--;
-              console.error(`[01:54 PM +0530] Dark-Yasiya API call failed (attempt ${4 - darkRetries}/3): ${darkError.message}`, darkError.response?.data || "No response data");
-              if (darkRetries === 0) throw darkError;
-              await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-          }
-        } else if (selectedLink.url.match(/^https:\/\/mega\.(nz|co\.nz)\/(?:file|folder)\/[#!\w-]+$/)) {
-          await downloadFromMega(conn, selectedLink.url, from, qualityMessage, selectedFilm, selectedLink);
-          return; // Exit early if MEGA download is handled
-        }
-
-        // Step 12: Download and send the movie file as document for non-MEGA/non-PixelDrain links
-        try {
-          console.log(`[01:54 PM +0530] Starting download from: ${finalDownloadUrl}`);
-          const tempFilePath = path.join(tempDir, `${selectedFilm.title.replace(/[^\w\s]/gi, '')}_${selectedLink.quality.replace(/\s+/g, '_')}.mp4`);
-          
-          let downloadAttempt = 0;
-          const maxAttempts = 3;
-          let response;
-
-          while (downloadAttempt < maxAttempts) {
-            try {
-              response = await axios({
-                method: 'get',
-                url: finalDownloadUrl,
-                responseType: 'stream',
-                maxRedirects: 10,
-                timeout: 60000,
-                headers: {
-                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                  'Accept': '*/*'
+            if (isReplyToSentMsg && sender === replyMek.key.remoteJid) {
+                const choice = parseInt(messageType) - 1;
+                if (isNaN(choice) || choice < 0 || choice >= cinesubResults.length) {
+                    await socket.sendMessage(sender, {
+                        text: `*❪ INVALID ❫*\n\n⚠️ *Wrong Number!*\n🎯 *Range:* _01 - ${cinesubResults.length}_\n📝 _Please reply with a valid number!_${DEFAULT_FOOTER}`
+                    }, { quoted: replyMek });
+                    return;
                 }
-              });
-              break;
-            } catch (error) {
-              downloadAttempt++;
-              console.error(`[01:54 PM +0530] Download attempt ${downloadAttempt}/${maxAttempts} failed for ${finalDownloadUrl}: ${error.message}`, error.response?.status, error.response?.headers);
-              if (downloadAttempt === maxAttempts) throw error;
-              await new Promise(resolve => setTimeout(resolve, 3000));
+
+                const selectedItem = cinesubResults[choice];
+                const isTvShow = selectedItem.type === 'tvshows';
+                
+                if (isTvShow) {
+                    await socket.sendMessage(sender, { 
+                        text: `*❪ FETCHING ❫*\n\n📺 *Fetching TV Series...*\n⚡ _Please wait..._`
+                    }, { quoted: replyMek });
+
+                    try {
+                        const tvShowResponse = await axios.get(`${API_BASE}/api/v1/movie/cinesubz/tv/info?q=${encodeURIComponent(selectedItem.link)}&api_key=${API_KEY}`);
+                        const tvShowData = tvShowResponse.data;
+
+                        if (!tvShowData.status || !tvShowData.data) {
+                            throw new Error('Failed to fetch TV show details');
+                        }
+
+                        const tvInfo = tvShowData.data;
+                        
+                        let tvDetailsText = `*❪ TV SERIES DETAILS ❫*\n\n📺 *${tvInfo.title}*\n⭐ 𝗜ᴍᴅʙ ➜ ★ ${tvInfo.rating || 'N/A'}\n📅 𝗬ᴇᴀʀ ➜ ${tvInfo.year || 'N/A'}\n⏳  ➜ ${tvInfo.duration || 'N/A'}\n🌍 ➜ ${tvInfo.country || 'N/A'}\n🎭  ➜ ${tvInfo.genres ? tvInfo.genres.join(', ') : 'N/A'}\n🎬  ➜ ${tvInfo.directors || 'N/A'}\n⭐ 𝗦ᴛᴀʀ𝘀: ${tvInfo.stars || 'N/A'}\n📝 𝗦ᴛ𝗼𝗿𝘆 ➜ ${tvInfo.story ? (tvInfo.story.length > 250 ? tvInfo.story.substring(0, 250) + '...' : tvInfo.story) : 'N/A'}\n🗿 ➜ cinesubz.com\n${DEFAULT_FOOTER}`;
+
+                        const posterUrl = tvInfo.image || selectedItem.image || DEFAULT_IMAGE;
+                        await socket.sendMessage(sender, {
+                            image: { url: posterUrl },
+                            caption: tvDetailsText
+                        }, { quoted: replyMek });
+
+                        // AUTO DOWNLOAD ALL EPISODES
+                        await socket.sendMessage(sender, { 
+                            text: `*❪ DOWNLOAD EPISODES ❫*\n\n📺 *Series:* _${tvInfo.title}_\n🎬 *Episodes:* _${tvInfo.episodes.length}_\n⚡ _Starting download process..._${DEFAULT_FOOTER}`
+                        }, { quoted: replyMek });
+
+                        let successCount = 0;
+                        let failCount = 0;
+
+                        for (let i = 0; i < tvInfo.episodes.length; i++) {
+                            const episode = tvInfo.episodes[i];
+                            try {
+                                await socket.sendMessage(sender, { 
+                                    text: `*❪ DOWNLOADING ❫*\n\n🎥 *Episode:* _${episode.episode_name}_\n📊 *Progress:* _${i + 1}/${tvInfo.episodes.length}_`
+                                }, { quoted: replyMek });
+
+                                const epDlRes = await axios.get(`${API_BASE}/api/v1/movie/cinesubz/tv/dl?q=${encodeURIComponent(episode.episode_url)}&api_key=${API_KEY}`);
+                                const epDlData = epDlRes.data;
+
+                                if (epDlData.status && epDlData.data && epDlData.data.length > 0) {
+                                    const nonTelegramLinks = epDlData.data.filter(link => 
+                                        link.link && !link.link.includes('t.me') && !link.link.includes('telegram')
+                                    );
+                                    const finalLinkObj = nonTelegramLinks[0] || epDlData.data[0];
+                                    
+                                    await socket.sendMessage(sender, {
+                                        document: { url: finalLinkObj.link },
+                                        mimetype: 'video/mp4',
+                                        fileName: `${tvInfo.title} - ${episode.episode_name}.mp4`,
+                                        caption: `*❪ MOVIE ❫*\n\n🎭 *${tvInfo.title}*\n📌 *${episode.episode_name}*${DEFAULT_FOOTER}`
+                                    }, { quoted: replyMek });
+                                    
+                                    successCount++;
+                                } else {
+                                    failCount++;
+                                }
+                                
+                                await new Promise(resolve => setTimeout(resolve, 2500));
+                                
+                            } catch (epError) {
+                                console.error(`Error downloading episode:`, epError);
+                                failCount++;
+                            }
+                        }
+                        
+                        await socket.sendMessage(sender, { 
+                            text: `*❪ SUMMARY ❫*\n\n🎉 *Download Complete!*\n\n🎬 *Series:* _${tvInfo.title}_\n✅ *Success:* _${successCount} Episodes_\n❌ *Failed:* _${failCount} Episodes_${DEFAULT_FOOTER}`
+                        }, { quoted: replyMek });
+
+                        socket.ev.off('messages.upsert', handleSelection);
+                        
+                    } catch (tvShowError) {
+                        console.error('TV Show error:', tvShowError);
+                        await socket.sendMessage(sender, {
+                            text: `*❪ ERROR ❫*\n\n❌ *TV Details Error!*\n🚫 _${tvShowError.message}_${DEFAULT_FOOTER}`
+                        }, { quoted: replyMek });
+                        socket.ev.off('messages.upsert', handleSelection);
+                    }
+                    
+                } else {
+                    // MOVIE FLOW
+                    await socket.sendMessage(sender, { 
+                        text: `*❪ FETCHING ❫*\n\n🎬 *Fetching Movie...*\n⚡ _Please wait..._`
+                    }, { quoted: replyMek });
+
+                    try {
+                        const detailsResponse = await axios.get(`${API_BASE}/api/v1/movie/cinesubz/infodl?q=${encodeURIComponent(selectedItem.link)}&api_key=${API_KEY}`);
+                        const detailsData = detailsResponse.data;
+
+                        if (!detailsData.status || !detailsData.data) {
+                            throw new Error('Failed to fetch details');
+                        }
+
+                        const movieInfo = detailsData.data;
+                        const validDownloads = movieInfo.downloads || [];
+                        
+                        if (validDownloads.length === 0) {
+                            await socket.sendMessage(sender, {
+                                text: `*❪ NO DOWNLOADS ❫*\n\n⚠️ *No Downloads Found!*\n😞 _There are no downloads available for this movie!_${DEFAULT_FOOTER}`
+                            }, { quoted: replyMek });
+                            return;
+                        }
+                        
+                        const movieDetailsText = `*❪ MOVIE DETAILS ❫*\n\n🎬 *${movieInfo.title}*\n⭐ 𝗜𝗠𝗗𝗕 ➜ ★ ${movieInfo.imdb || movieInfo.rating || 'N/A'}\n📅 𝗬𝗲𝗮𝗿 ➜ ${movieInfo.year || 'N/A'}\n⏳ 𝗗𝘂𝗿𝗮𝘁𝗶𝗼𝗻 ➜ ${movieInfo.duration || 'N/A'}\n🌍 𝗖ᴏᴜɴ𝘁𝗿ʏ ➜ ${movieInfo.country || 'N/A'}\n🎭 𝗚𝗲𝗻 genres ➜ ${movieInfo.genres ? movieInfo.genres.join(', ') : 'N/A'}\n🏷️ ➜ ${movieInfo.language || 'N/A'}\n🎬  ➜ ${movieInfo.director || 'N/A'}\n⭐  ➜ ${movieInfo.stars || 'N/A'}\n📝  ➜ ${movieInfo.story ? (movieInfo.story.length > 250 ? movieInfo.story.substring(0, 250) + '...' : movieInfo.story) : 'N/A'}\n🗿 ➜ cinesubz.com\n${DEFAULT_FOOTER}`;
+
+                        const moviePosterUrl = movieInfo.image || selectedItem.image || DEFAULT_IMAGE;
+                        await socket.sendMessage(sender, {
+                            image: { url: moviePosterUrl },
+                            caption: movieDetailsText
+                        }, { quoted: replyMek });
+
+                        const downloadOptionsText = `*❪ DOWNLOADS ❫*\n\n📥 *Select Quality:*\n\n${validDownloads.map((dl, i) => {
+    const num = (i + 1) < 10 ? `0${i + 1}` : `${i + 1}`;
+    const qualityIcon = dl.quality.includes('1080') ? '🔥' : dl.quality.includes('720') ? '💎' : '📱';
+    return `*${num}* ➜ ${qualityIcon} _${dl.quality}_ 💾 _${dl.size || 'N/A'}_`;
+}).join('\n')}\n\n*💬 REPLY TO DOWNLOAD 💬*\n📌 _Reply with the number_${DEFAULT_FOOTER}`;
+
+                        const downloadOptionsMsg = await socket.sendMessage(sender, { text: downloadOptionsText }, { quoted: replyMek });
+                        const optionsMsgID = downloadOptionsMsg.key.id;
+
+                        const handleDownload = async ({ messages: downloadMessages }) => {
+                            const downloadMek = downloadMessages[0];
+                            if (!downloadMek?.message) return;
+
+                            const downloadChoice = downloadMek.message.conversation || downloadMek.message.extendedTextMessage?.text;
+                            const isReplyToOptionsMsg = downloadMek.message.extendedTextMessage?.contextInfo?.stanzaId === optionsMsgID;
+
+                            if (isReplyToOptionsMsg && sender === downloadMek.key.remoteJid) {
+                                const choiceNum = parseInt(downloadChoice) - 1;
+                                
+                                if (isNaN(choiceNum) || choiceNum < 0 || choiceNum >= validDownloads.length) {
+                                    await socket.sendMessage(sender, {
+                                        text: `*❪ INVALID ❫*\n\n⚠️ *Wrong Number!*\n🎯 *Range:* _01 - ${validDownloads.length}_\n📝 _Please reply with a valid number!_${DEFAULT_FOOTER}`
+                                    }, { quoted: downloadMek });
+                                    return;
+                                }
+
+                                const selectedDownload = validDownloads[choiceNum];
+                                await socket.sendMessage(sender, { react: { text: '📥', key: downloadMek.key } });
+
+                                try {
+                                    const finalDirectLink = selectedDownload.link;
+
+                                    await socket.sendMessage(sender, {
+                                        document: { url: finalDirectLink },
+                                        mimetype: 'video/mp4',
+                                        fileName: `${movieInfo.title} - ${selectedDownload.quality}.mp4`,
+                                        caption: `*❪ MOVIE ❫*\n\n🎭 *${movieInfo.title}*\n📌 *Quality:* _${selectedDownload.quality}_\n💾 *Size:* _${selectedDownload.size}_${DEFAULT_FOOTER}`
+                                    }, { quoted: downloadMek });
+
+                                    await socket.sendMessage(sender, { react: { text: '✅', key: downloadMek.key } });
+
+                                } catch (downloadError) {
+                                    console.error('Download link error:', downloadError);
+                                    await socket.sendMessage(sender, {
+                                        text: `*❪ ERROR ❫*\n\n❌ *Download Failed!*\n🚫 _${downloadError.message}_${DEFAULT_FOOTER}`
+                                    }, { quoted: downloadMek });
+                                } finally {
+                                    socket.ev.off('messages.upsert', handleDownload);
+                                    socket.ev.off('messages.upsert', handleSelection);
+                                }
+                            }
+                        };
+
+                        socket.ev.on('messages.upsert', handleDownload);
+
+                    } catch (detailsError) {
+                        console.error('Details error:', detailsError);
+                        await socket.sendMessage(sender, {
+                            text: `*❪ ERROR ❫*\n\n❌ *Movie Details Error!*\n🚫 _${detailsError.message}_${DEFAULT_FOOTER}`
+                        }, { quoted: replyMek });
+                        socket.ev.off('messages.upsert', handleSelection);
+                    }
+                }
             }
-          }
+        };
 
-          const writer = fs.createWriteStream(tempFilePath);
-          response.data.pipe(writer);
+        socket.ev.on('messages.upsert', handleSelection);
 
-          await new Promise((resolve, reject) => {
-            writer.on('finish', resolve);
-            writer.on('error', reject);
-          });
-
-          const fileStats = await fsp.stat(tempFilePath);
-          const fileSize = fileStats.size;
-          const minSize = 1024 * 1024; // 1MB minimum size
-          console.log(`[01:54 PM +0530] Downloaded file size: ${fileSize} bytes`);
-
-          if (fileSize < minSize) {
-            await fsp.unlink(tempFilePath);
-            throw new Error(`Downloaded file size (${fileSize} bytes) too small, likely not the original movie`);
-          }
-
-          await conn.sendMessage(from, {
-            document: { url: tempFilePath },
-            mimetype: "video/mp4",
-            fileName: `${selectedFilm.title.replace(/[^\w\s]/gi, '')}_${selectedLink.quality.replace(/\s+/g, '_')}.mp4`,
-            caption: `ðŸŽ¬ ${selectedFilm.title} (${selectedFilm.year})\n\nÇ«á´œá´€ÊŸÉªá´›Ê: ${selectedLink.quality}\nsÉªá´¢á´‡: ${selectedLink.size}\n\ná´˜á´á´¡á´‡á´€Ê€á´… Ê™Ê á´›á´„á´„ á´›á´‡á´€á´.`,
-            ...simpleTheme.getForwardProps()
-          }, { quoted: qualityMessage });
-
-          await conn.sendMessage(from, { 
-            react: { 
-              text: simpleTheme.resultEmojis[Math.floor(Math.random() * simpleTheme.resultEmojis.length)], 
-              key: qualityMessage.key 
-            } 
-          });
-
-          await fsp.unlink(tempFilePath);
-          console.log(`[01:54 PM +0530] Successfully sent movie and cleaned up temp file`);
-        } catch (downloadError) {
-          console.error(`[01:54 PM +0530] Failed to send movie: ${downloadError.message}`, downloadError.stack);
-          await conn.sendMessage(from, {
-            text: simpleTheme.box("Download Failed", 
-              `Failed to send the movie. The file may be invalid or the link requires manual download:\n\n${finalDownloadUrl}\n\nError: ${downloadError.message}`),
-            ...simpleTheme.getForwardProps()
-          }, { quoted: qualityMessage });
-        }
-      };
-
-      // Register quality selection listener
-      conn.ev.on("messages.upsert", qualitySelectionHandler);
-    };
-
-    // Register film selection listener
-    conn.ev.on("messages.upsert", filmSelectionHandler);
-  } catch (e) {
-    console.error("[01:54 PM +0530] Error in film command:", e);
-    const errorMsg = simpleTheme.box("Error", 
-      `Sorry, an error occurred:\n\n${e.message || "Unknown error"}\n\nPlease try again later`);
-    
-    await reply(errorMsg);
-    await conn.sendMessage(from, { react: { text: "âŒ", key: mek.key } });
-  }
+    } catch (error) {
+        console.error('Cinesubz command error:', error);
+        await socket.sendMessage(sender, {
+            text: `*❪ SYSTEM ERROR ❫*\n\n❌ *System Error!*\n🚫 _${error.message || 'Unknown error'}_\n\n🔄 _Please try again later..._${DEFAULT_FOOTER}`
+        }, { quoted: msg });
+    }
 });
