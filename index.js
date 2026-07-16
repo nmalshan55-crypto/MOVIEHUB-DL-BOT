@@ -17,7 +17,7 @@ const { sms, downloadMediaMessage } = require('./lib/msg')
 const axios = require('axios')
 const prefix = '.'
 
-const ownerNumber = ['94724898578']
+const ownerNumber = ['94774527220']
 
 const express = require('express')
 const app = express()
