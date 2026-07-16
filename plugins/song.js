@@ -5,7 +5,7 @@ const axios = require('axios');
 cmd({
     pattern: "song",
     alias: ["ytmp3", "play", "music"],
-    desc: "Download YouTube songs (Vajira API)",
+    desc: "Download YouTube songs (Free Public API)",
     category: "download",
     react: "🎵",
     filename: __filename
@@ -33,38 +33,33 @@ async (conn, mek, m, { from, reply, q }) => {
 
         await conn.sendMessage(from, { react: { text: '⬇️', key: mek.key } });
 
-        // Vajira API
-        const API_URL = "https://vajiraofc-apis.vercel.app/api/ytmp3";
-        const API_KEY = "kumaradissanayaka30@gmail.com:vajira-12557";
+        // Extract video ID
+        const videoIdMatch = videoUrl.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+        if (!videoIdMatch) {
+            return reply('❌ Invalid YouTube URL!');
+        }
+        const videoId = videoIdMatch[1];
 
-        const apiResponse = await axios.get(API_URL, {
-            params: {
-                apikey: API_KEY,
-                url: videoUrl,
-                quality: 128
-            }
-        });
+        // Free Public API (no key required)
+        const apiUrl = `https://ytmp3.cc/api/button/mp3/${videoId}`;
 
-        const data = apiResponse.data;
+        const apiResponse = await axios.get(apiUrl);
+        const html = apiResponse.data;
 
-        // Adjust according to actual API response structure
-        if (!data || data.status === false) {
+        // Extract download link from HTML response
+        const linkMatch = html.match(/href="(https:\/\/[^"]+\/download[^"]+)"/);
+        
+        if (!linkMatch) {
             return reply('❌ Failed to get download link. Please try another song.');
         }
 
-        // Common response structures - adjust if needed
-        const downloadLink = data.result?.download_url || data.download_url || data.url;
-        const title = data.result?.title || data.title || videoTitle;
-
-        if (!downloadLink) {
-            return reply('❌ Could not extract download link from API response.');
-        }
+        const downloadLink = linkMatch[1];
 
         await conn.sendMessage(from, {
             audio: { url: downloadLink },
             mimetype: 'audio/mpeg',
-            fileName: `${title}.mp3`,
-            caption: `🎵 *${title}*\n\n> 🧬 ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴍᴏᴠɪᴇʜᴜʙ-ᴅʟ`
+            fileName: `${videoTitle}.mp3`,
+            caption: `🎵 *${videoTitle}*\n\n> 🧬 ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴍᴏᴠɪᴇʜᴜʙ-ᴅʟ`
         }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } });
