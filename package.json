@@ -19,8 +19,6 @@
     "node-cache": "^5.1.2",
     "pino": "^10.3.1",
     "pm2": "^7.0.3",
-    "python": "latest",
-    "yt-dlp-exec": "^1.0.2",
     "yt-search": "^2.13.1"
   }
 }
