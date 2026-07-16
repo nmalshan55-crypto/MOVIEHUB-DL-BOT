@@ -21,22 +21,22 @@ cmd({
 │ • .restart
 │
 ├─「 *Movie & Series* 」
-│ • .moviebox
+│ • .moviebox / .moviepro
 │ • .cineru
 │ • .cinemx
-│ • .cinesubz
+│ • .cinesubz / .cinetv
 │ • .sinhalasub
 │ • .baiscope
 │ • .cartoon
 │ • .anime
 │
 ├─「 *Music* 」
-│ • .song (Under Devolopment)
+│ • .song
 │
 ├─「 *AI Assistant* 」
 │ • .gemini <question>
 │ • .ai <question>
-│ • .gf <question>
+│ • .gf <ai girlfriend 🫦>
 │
 ╰────────────────────╯
 
