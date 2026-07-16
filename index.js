@@ -29,7 +29,7 @@ app.use(express.json())
 // is wiped on every redeploy, dyno restart, or dyno cycle. Storing the session in
 // MongoDB instead means you only have to pair once.
 const { MongoClient } = require('mongodb')
-const { useMongoDBAuthState } = require('mongo-baileys')
+const { useMongoAuthState } = require('./lib/mongoAuthState')
 
 if (!process.env.MONGODB_URI) {
   console.error('MONGODB_URI is not set. Set it with: heroku config:set MONGODB_URI="your-connection-string"')
@@ -102,7 +102,7 @@ async function startBot(pairNumber) {
   const myGen = ++sockGeneration
 
   try {
-    const { state, saveCreds } = await useMongoDBAuthState(authCollection)
+    const { state, saveCreds } = await useMongoAuthState(authCollection)
     const { version } = await fetchLatestBaileysVersion()
 
     const currentSock = makeWASocket({
@@ -338,7 +338,7 @@ function renderPage() {
 </head>
 <body>
   <div class="card">
-    <h1>🤍 MOVIEHUB-DL-BOT</h1>
+    <h1>🤍 MOVIEHUB-DL-BOT 🤍</h1>
     <div class="sub">Link this bot to your WhatsApp account</div>
 
     <div id="form-section">
