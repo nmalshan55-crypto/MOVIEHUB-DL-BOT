@@ -1,44 +1,63 @@
 const {cmd , commands} = require('../command')
-const { youtube } = require('btch-downloader')
-const yts = require('yt-search')
+const yts = require("yt-search");
+const ytdlp = require("yt-dlp-exec");
+const fs = require("fs");
 
-cmd({
-    pattern: "song",
-    desc: "download songs",
-    category: "downlod",
-    filename: __filename
-},
-async(conn, mek, m,{from, quoted, body, isCmd, command, args, q, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply}) => {
-try{
- if(!q) return reply("please give me url or title")
- const search = await yts(q);
- const data = search.videos[0];
- if (!data) return reply("Couldn't find that song.")
- const url = data.url
+module.exports = {
+    name: "song",
+    command: ["song", "play"],
+    description: "Download YouTube audio",
 
-let desc = `
-⭐ *LAKSHAN-MD-BOT song DOWNLOADER* ⭐
-    
-    title: ${data.title}
-    description: ${data.description}
-    time: ${data.timestamp}
-    ago: ${data.ago}
-    views: ${data.views}
-    
-    MADE BY LIYANAARACHCHI AVISHKA THIMIRA LAKSHAN 💚
-    `
-    await conn.sendMessage(from,{image:{url: data.thumbnail},caption:desc}, {quoted:mek});
+    async execute({ sock, m, args }) {
+        if (!args.length) {
+            return sock.sendMessage(m.key.remoteJid, {
+                text: "Example:\n.song Faded Alan Walker"
+            }, { quoted: m });
+        }
 
-    //download audio via btch-downloader
-    const down = await youtube(url)
-    const downloadUrl = down.mp3
+        const query = args.join(" ");
 
-    //send audio + document message
-    await conn.sendMessage(from,{audio:{url:downloadUrl},mimetype:"audio/mpeg"},{quoted:mek})
-    await conn.sendMessage(from,{document:{url:downloadUrl},mimetype:"audio/mpeg",fileName:data.title + ".mp3",caption:"MADE BY LIYANAARACHCHI AVISHKA THIMIRA LAKSHAN 💚"},{quoted:mek})
-    
-}catch(e){
-console.log(e)
-reply(`${e}`)
-} 
-})
+        try {
+            const search = await yts(query);
+
+            if (!search.videos.length) {
+                return sock.sendMessage(m.key.remoteJid, {
+                    text: "No results found."
+                }, { quoted: m });
+            }
+
+            const video = search.videos[0];
+
+            await sock.sendMessage(m.key.remoteJid, {
+                text: `🎵 *${video.title}*\n⏱ ${video.timestamp}\n👀 ${video.views}\n\nDownloading...`
+            }, { quoted: m });
+
+            const file = `./temp/${Date.now()}.mp3`;
+
+            await ytdlp(video.url, {
+                extractAudio: true,
+                audioFormat: "mp3",
+                output: file
+            });
+
+            await sock.sendMessage(
+                m.key.remoteJid,
+                {
+                    audio: fs.readFileSync(file),
+                    mimetype: "audio/mpeg",
+                    fileName: `${video.title}.mp3`
+                },
+                { quoted: m }
+            );
+
+            fs.unlinkSync(file);
+
+        } catch (err) {
+            console.log(err);
+
+            sock.sendMessage(m.key.remoteJid, {
+                text: "Failed to download the song."
+            }, { quoted: m });
+        }
+    }
+};
