@@ -21,7 +21,7 @@ async (socket, msg, m, { from, args }) => {
 • .anime naruto
 • .animost your name\n\n📝 _Please provide the Anime name!_${DEFAULT_FOOTER}`
         }, { quoted: msg });
-        break;
+        return;
     }
 
     const query = args.join(' ');
