@@ -1,6 +1,5 @@
 const {
   default: makeWASocket,
-  useMultiFileAuthState,
   DisconnectReason,
   jidNormalizedUser,
   getContentType,
@@ -20,12 +19,36 @@ const prefix = '.'
 
 const ownerNumber = ['94724898578']
 
-const AUTH_DIR = path.join(__dirname, 'auth_info_baileys')
-
 const express = require('express')
 const app = express()
 const port = process.env.PORT || 5000
 app.use(express.json())
+
+// =========================== SESSION STORAGE (MongoDB) ===========================
+// Heroku's filesystem is ephemeral -- anything saved to disk (like auth_info_baileys/)
+// is wiped on every redeploy, dyno restart, or dyno cycle. Storing the session in
+// MongoDB instead means you only have to pair once.
+const { MongoClient } = require('mongodb')
+const { useMongoDBAuthState } = require('mongo-baileys')
+
+if (!process.env.MONGODB_URI) {
+  console.error('MONGODB_URI is not set. Set it with: heroku config:set MONGODB_URI="your-connection-string"')
+}
+
+const mongoClient = new MongoClient(process.env.MONGODB_URI)
+let authCollection = null
+
+async function initMongo() {
+  await mongoClient.connect()
+  authCollection = mongoClient.db('whatsapp').collection('authState')
+  console.log('Connected to MongoDB for session storage ✅')
+}
+
+async function hasSession() {
+  if (!authCollection) return false
+  const count = await authCollection.countDocuments()
+  return count > 0
+}
 
 // =========================== BOT / PAIRING STATE ===========================
 let sock = null
@@ -39,10 +62,6 @@ let sockGeneration = 0
 
 const PAIRING_TIMEOUT_MS = 2 * 60 * 1000 // give the user 2 minutes to enter the code
 
-function hasSession() {
-  return fs.existsSync(path.join(AUTH_DIR, 'creds.json'))
-}
-
 function clearPairingTimer() {
   if (pairingTimer) {
     clearTimeout(pairingTimer)
@@ -54,9 +73,9 @@ function clearPairingTimer() {
 function resetSession(message) {
   clearPairingTimer()
   sockGeneration++ // invalidate any in-flight socket's event handlers so they don't auto-reconnect
-  try {
-    fs.rmSync(AUTH_DIR, { recursive: true, force: true })
-  } catch (e) {}
+  if (authCollection) {
+    authCollection.deleteMany({}).catch(() => {})
+  }
   pairingCode = null
   pairingError = message || null
   isConnected = false
@@ -83,7 +102,7 @@ async function startBot(pairNumber) {
   const myGen = ++sockGeneration
 
   try {
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
+    const { state, saveCreds } = await useMongoDBAuthState(authCollection)
     const { version } = await fetchLatestBaileysVersion()
 
     const currentSock = makeWASocket({
@@ -443,8 +462,16 @@ app.post('/api/pair', async (req, res) => {
 
 app.listen(port, '0.0.0.0', () => console.log(`Server listening on http://0.0.0.0:${port}`))
 
-if (hasSession()) {
-  startBot()
-} else {
-  console.log('No linked session found. Open the web page to pair your WhatsApp account.')
-}
+;(async () => {
+  try {
+    await initMongo()
+    const exists = await hasSession()
+    if (exists) {
+      startBot()
+    } else {
+      console.log('No linked session found. Open the web page to pair your WhatsApp account.')
+    }
+  } catch (e) {
+    console.error('Failed to connect to MongoDB. Check MONGODB_URI.', e)
+  }
+})()
