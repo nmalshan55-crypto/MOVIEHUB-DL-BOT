@@ -1,6 +1,6 @@
-# MOVIEHUB-DL-BOT
+# MOVIEHUB-DL-BOT V2
 A simple whatsapp bot
-<h1 align="center" style="font-family: 'Ribeye', cursive;">🤍 MOVIEHUB-DL-BOT V1 🤍</h1>
+<h1 align="center" style="font-family: 'Ribeye', cursive;">🤍 MOVIEHUB-DL-BOT V2 🤍</h1>
 <p align="center" style="font-size: 18px;">✨ The Ultimate WhatsApp Multi-Device Bot with Full Button Support ✨</p>
 
 <div align="center">
