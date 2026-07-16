@@ -1,6 +1,6 @@
 const {cmd , commands} = require('../command')
 const fg = require('api-dylux')
-const yts = require('yts-search')
+const yts = require('yt-search')
 
 cmd({
     pattern: "song",
@@ -16,7 +16,7 @@ try{
  const url = data.url
 
 let desc = `
-⭐ *LAKSHAN-MD-BOT song DOWNLOADER* ⭐
+⭐ *MOVIEHUB-DL-BOT song DOWNLOADER* ⭐
     
     title: ${data.title}
     description: ${data.description}
@@ -24,7 +24,7 @@ let desc = `
     ago: ${data.ago}
     views: ${data.views}
     
-    MADE BY LIYANAARACHCHI AVISHKA THIMIRA LAKSHAN 💚
+    MADE BY SAHAN DISSANAYAKA 💚
     `
     await conn.sendMessage(from,{image:{url: data.thumbnail},caption:desc}, {quoted:mek});
    //download audio
