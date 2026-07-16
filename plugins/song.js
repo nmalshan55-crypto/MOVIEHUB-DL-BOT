@@ -1,5 +1,5 @@
 const {cmd , commands} = require('../command')
-const fg = require('api-dylux')
+const fg = require('@distube/ytdl-core')
 const yts = require('yt-search')
 
 cmd({
