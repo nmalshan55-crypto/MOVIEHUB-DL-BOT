@@ -31,7 +31,7 @@ cmd({
 │ • .anime
 │
 ├─「 *Music* 」
-│ • .song
+│ • .song (Under Devolopment)
 │
 ├─「 *AI Assistant* 」
 │ • .gemini <question>
