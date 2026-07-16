@@ -14,5 +14,7 @@ module.exports = {
     // Gemini AI Keys - Supports multiple keys (recommended for quota limits)
     GEMINI_API_KEYS: process.env.GEMINI_API_KEYS 
         ? process.env.GEMINI_API_KEYS.split(',').map(key => key.trim()).filter(Boolean)
-        : (process.env.GEMINI_API_KEY ? [process.env.GEMINI_API_KEY] : []),
+        : (process.env.GEMINI_API_KEY ? [process.env.GEMINI_API_KEY] : [AQ.Ab8RN6LSttakd5WOd674fI-2RNtwWqMKfIl-ERrTT6fr9m3zhw,
+                                                                        AQ.Ab8RN6IWRkQJ6C9bDXAlDW2gKx_UDArMzAeLJCWygcuzUZzm0g,
+                                                                       AQ.Ab8RN6I2rdG2ncoq8e1TSNEZrsQtCuZR1DmvOWIQUqWlpDNYCQ]),
 };
