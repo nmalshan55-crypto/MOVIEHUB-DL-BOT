@@ -5,7 +5,7 @@ const axios = require('axios');
 cmd({
     pattern: "song",
     alias: ["ytmp3", "play", "music"],
-    desc: "Download YouTube songs using Dark Shan YT API",
+    desc: "Download YouTube songs (Vajira API)",
     category: "download",
     react: "🎵",
     filename: __filename
@@ -21,7 +21,7 @@ async (conn, mek, m, { from, reply, q }) => {
         let videoUrl = q;
         let videoTitle = q;
 
-        // If not a direct link, search first
+        // Search if not a direct link
         if (!q.includes('youtube.com') && !q.includes('youtu.be')) {
             const search = await yts(q);
             if (!search.videos.length) {
@@ -33,27 +33,33 @@ async (conn, mek, m, { from, reply, q }) => {
 
         await conn.sendMessage(from, { react: { text: '⬇️', key: mek.key } });
 
-        // Your Custom API
-        const API_URL = "https://api-dark-shan-yt.koyeb.app/download/ytmp3";
-        const API_KEY = "0f32d99d8c139689";
+        // Vajira API
+        const API_URL = "https://vajiraofc-apis.vercel.app/api/ytmp3";
+        const API_KEY = "kumaradissanayaka30@gmail.com:vajira-12557";
 
         const apiResponse = await axios.get(API_URL, {
             params: {
+                apikey: API_KEY,
                 url: videoUrl,
-                api_key: API_KEY
+                quality: 128
             }
         });
 
         const data = apiResponse.data;
 
-        if (!data || !data.status || !data.download_url) {
-            return reply('❌ Failed to get download link from API. Please try again.');
+        // Adjust according to actual API response structure
+        if (!data || data.status === false) {
+            return reply('❌ Failed to get download link. Please try another song.');
         }
 
-        const downloadLink = data.download_url;
-        const title = data.title || videoTitle;
+        // Common response structures - adjust if needed
+        const downloadLink = data.result?.download_url || data.download_url || data.url;
+        const title = data.result?.title || data.title || videoTitle;
 
-        // Send audio
+        if (!downloadLink) {
+            return reply('❌ Could not extract download link from API response.');
+        }
+
         await conn.sendMessage(from, {
             audio: { url: downloadLink },
             mimetype: 'audio/mpeg',
@@ -66,6 +72,6 @@ async (conn, mek, m, { from, reply, q }) => {
     } catch (e) {
         console.error('Song API Error:', e);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } });
-        reply(`❌ Error: ${e.message || "Something went wrong"}\n\nPlease try another song.`);
+        reply(`❌ Error: ${e.message || "Download failed"}\n\nPlease try another song.`);
     }
 });
