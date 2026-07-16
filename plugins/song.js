@@ -1,6 +1,6 @@
 const {cmd , commands} = require('../command')
 const yts = require("yt-search");
-const ytdlp = require("yt-dlp-exec");
+const ytdl = require("@distube/ytdl-core");
 const fs = require("fs");
 
 module.exports = {
@@ -34,7 +34,7 @@ module.exports = {
 
             const file = `./temp/${Date.now()}.mp3`;
 
-            await ytdlp(video.url, {
+            await ytdl(video.url, {
                 extractAudio: true,
                 audioFormat: "mp3",
                 output: file
