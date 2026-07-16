@@ -5,63 +5,50 @@ const axios = require('axios');
 cmd({
     pattern: "song",
     alias: ["ytmp3", "play", "music"],
-    desc: "Download YouTube songs as MP3 (API Method)",
+    desc: "Download YouTube songs as MP3",
     category: "download",
     react: "🎵",
     filename: __filename
 },
 async (conn, mek, m, { from, reply, q }) => {
     try {
-        if (!q) {
-            return reply(`❌ Please provide a song name or YouTube link!\n\n*Example:*\n.song shape of you\n.song https://youtu.be/3JZ_D3ELwOQ`);
-        }
+        if (!q) return reply(`❌ Please provide a song name or YouTube link!`);
 
         await conn.sendMessage(from, { react: { text: '🔍', key: mek.key } });
 
         let videoId;
         let videoTitle = q;
 
-        // Check if user gave a direct YouTube link
+        // If user sends a link
         if (q.includes('youtube.com') || q.includes('youtu.be')) {
-            const urlMatch = q.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-            if (!urlMatch) return reply('❌ Invalid YouTube link!');
-            videoId = urlMatch[1];
+            const match = q.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+            if (!match) return reply('❌ Invalid YouTube link!');
+            videoId = match[1];
         } else {
-            // Search for the song
-            const searchResults = await yts(q);
-            if (!searchResults.videos.length) {
-                return reply('❌ No results found. Try another song name.');
-            }
-
-            const video = searchResults.videos[0];
-            videoId = video.videoId;
-            videoTitle = video.title;
+            // Search song
+            const search = await yts(q);
+            if (!search.videos.length) return reply('❌ No results found!');
+            videoId = search.videos[0].videoId;
+            videoTitle = search.videos[0].title;
         }
 
         await conn.sendMessage(from, { react: { text: '⬇️', key: mek.key } });
 
-        // Use free API to get MP3 download link
-        const apiUrl = `https://api.vevioz.com/api/button/mp3/${videoId}`;
-        
-        let downloadLink;
-        try {
-            const apiResponse = await axios.get(apiUrl);
-            const html = apiResponse.data;
+        // Using Cobalt API (more stable)
+        const cobaltRes = await axios.post('https://api.cobalt.tools/api/json', {
+            url: `https://www.youtube.com/watch?v=${videoId}`
+        }, {
+            headers: { 'Accept': 'application/json' }
+        });
 
-            // Extract download link from the API response
-            const linkMatch = html.match(/href="(https:\/\/[^"]+\.mp3[^"]*)"/);
-            if (!linkMatch) {
-                throw new Error('Could not extract download link');
-            }
-            downloadLink = linkMatch[1];
-        } catch (apiError) {
-            console.error('API Error:', apiError.message);
-            return reply('❌ Failed to get download link. Please try again later or use another song.');
+        if (!cobaltRes.data || !cobaltRes.data.url) {
+            return reply('❌ Failed to get download link. Try another song.');
         }
 
-        // Send the audio file
+        const downloadUrl = cobaltRes.data.url;
+
         await conn.sendMessage(from, {
-            audio: { url: downloadLink },
+            audio: { url: downloadUrl },
             mimetype: 'audio/mpeg',
             fileName: `${videoTitle}.mp3`,
             caption: `🎵 *${videoTitle}*\n\n> 🧬 ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴍᴏᴠɪᴇʜᴜʙ-ᴅʟ`
@@ -70,8 +57,8 @@ async (conn, mek, m, { from, reply, q }) => {
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } });
 
     } catch (e) {
-        console.error('Song command error:', e);
+        console.error(e);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } });
-        reply(`❌ Error: ${e.message || "Something went wrong"}\n\nPlease try another song.`);
+        reply(`❌ Error: ${e.message || "Download failed"}\n\nPlease try again.`);
     }
 });
