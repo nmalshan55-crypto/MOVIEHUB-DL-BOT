@@ -21,7 +21,7 @@ async (socket, msg, m, { from, args }) => {
 • .baiscope iron man
 • .bs dark knight\n\n📝 _Please provide the Movie_ _or TV Series name!_${DEFAULT_FOOTER}`
         }, { quoted: msg });
-        break;
+        return;
     }
 
     const query = args.join(' ');
