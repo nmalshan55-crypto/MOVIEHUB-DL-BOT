@@ -4,9 +4,9 @@
   "description": "A WhatsApp bot created using Node.js",
   "main": "index.js",
   "scripts": {
-    "start:pm2": "pm2 start index.js --deep-monitoring --attach --name mvhub",
-    "stop": "pm2 stop mvhub",
-    "restart": "pm2 restart mvhub"
+    "start": "pm2 start index.js --deep-monitoring --attach --name MVHUB-DL",
+    "stop": "pm2 stop MVHUB-DL",
+    "restart": "pm2 restart MVHUB-DL"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc13",
