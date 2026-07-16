@@ -13,7 +13,7 @@ cmd({
 },
 async (socket, msg, m, { from, args }) => {
     const sender = from;
-    const DEFAULT_FOOTER = `\n\n> 🎭 𝗠𝗢𝗩𝗜𝗘𝗛𝗨𝗕╺ 𝗗𝗟 𝗖𝗜𝗡𝗘𝗛𝗨𝗕 🎭\n> 🧬 ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴍᴏᴠɪᴇʜᴜʙ-ᴅʟ`;
+    const DEFAULT_FOOTER = `\n\n> 🧬 ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴍᴏᴠɪᴇʜᴜʙ-ᴅʟ`;
 
     if (!args.length) {
         await socket.sendMessage(sender, {
