@@ -18,7 +18,7 @@ const { sms, downloadMediaMessage } = require('./lib/msg')
 const axios = require('axios')
 const prefix = '.'
 
-const ownerNumber = ['94774527220']
+const ownerNumber = ['94724898578']
 
 const AUTH_DIR = path.join(__dirname, 'auth_info_baileys')
 
