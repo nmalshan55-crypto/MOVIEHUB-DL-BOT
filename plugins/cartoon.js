@@ -21,7 +21,7 @@ async (socket, msg, m, { from, args }) => {
 • .cartoon ben 10
 • .sinhalacartoons frozen\n\n📝 _Please provide the Cartoon_ _or Anime name!_${DEFAULT_FOOTER}`
         }, { quoted: msg });
-        break;
+        return;
     }
 
     const query = args.join(' ');
@@ -41,7 +41,7 @@ async (socket, msg, m, { from, args }) => {
             await socket.sendMessage(sender, {
                 text: `*❪ NO RESULTS ❫*\n\n😞 *No Results Found!*\n\n🎬 *Query:* _${query}_\n💡 *Tip:* _Please check the spelling and try again!_${DEFAULT_FOOTER}`
             }, { quoted: msg });
-            break;
+            return;
         }
 
         const results = searchData.data.slice(0, 25);
