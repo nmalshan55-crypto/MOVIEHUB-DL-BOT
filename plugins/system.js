@@ -27,10 +27,10 @@ cmd({
 │ ⚙️ *Platform*: ${os.platform()} (${os.arch()})
 │ 🖱️ *CPU*: ${os.cpus()[0]?.model || 'Unknown'}
 │ 🖧 *Hostname*: ${os.hostname()}
-│ 🧑‍💻 *Owner*: LAKSHSN
+│ 🧑‍💻 *Owner*: Sahan Dissanayaka
 │
 ╰───────────────────╯
-*𝙲𝙸𝙽𝙴𝚅𝙸𝙱𝙴𝚂 𝙻𝙺 𝙾𝙵𝙵𝙸𝙴𝚎𝚂*`;
+*MOVIEHUB-DL BOT*`;
 
         await reply(status);
 
