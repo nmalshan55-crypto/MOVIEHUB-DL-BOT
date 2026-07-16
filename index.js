@@ -62,6 +62,20 @@ let sockGeneration = 0
 
 const PAIRING_TIMEOUT_MS = 2 * 60 * 1000 // give the user 2 minutes to enter the code
 
+// If the saved session is stale/invalid, WhatsApp closes the connection almost
+// instantly on every reconnect attempt, causing an infinite loop that also blocks
+// new pairing requests. Track fast repeated closes and wipe the bad session instead.
+let recentCloseTimestamps = []
+const RECONNECT_FLOOD_WINDOW_MS = 60 * 1000
+const RECONNECT_FLOOD_THRESHOLD = 4
+
+function isReconnectFlooding() {
+  const now = Date.now()
+  recentCloseTimestamps = recentCloseTimestamps.filter(t => now - t < RECONNECT_FLOOD_WINDOW_MS)
+  recentCloseTimestamps.push(now)
+  return recentCloseTimestamps.length >= RECONNECT_FLOOD_THRESHOLD
+}
+
 function clearPairingTimer() {
   if (pairingTimer) {
     clearTimeout(pairingTimer)
@@ -169,6 +183,9 @@ async function startBot(pairNumber) {
           // Either pairing was rejected, or the device was removed from WhatsApp's linked devices list.
           console.log('Device logged out / unlinked. Clearing session — please pair again from the web page.')
           resetSession(wasConnected ? 'This device was unlinked from WhatsApp. Please pair again.' : null)
+        } else if (isReconnectFlooding()) {
+          console.log('Connection keeps closing immediately — the saved session looks invalid. Clearing it so you can pair again.')
+          resetSession('The previous session stopped working. Please pair again.')
         } else {
           console.log('Connection closed, reconnecting...')
           startBot()
@@ -338,7 +355,7 @@ function renderPage() {
 </head>
 <body>
   <div class="card">
-    <h1>🤍 MOVIEHUB-DL-BOT 🤍</h1>
+    <h1>🤍 MOVIEHUB-DL-BOT</h1>
     <div class="sub">Link this bot to your WhatsApp account</div>
 
     <div id="form-section">
