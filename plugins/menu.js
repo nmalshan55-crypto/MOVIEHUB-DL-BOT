@@ -21,7 +21,7 @@ cmd({
 │ • .restart
 │
 ├─「 *Movie & Series* 」
-│ • .moviebox / .moviepro
+│ • .moviebox
 │ • .cineru
 │ • .cinemx
 │ • .cinesubz / .cinetv
@@ -35,8 +35,7 @@ cmd({
 │
 ├─「 *AI Assistant* 」
 │ • .gemini <question>
-│ • .ai <question>
-│ • .gf <ai girlfriend 🫦>
+│ • .sethu <ai girlfriend 😘>
 │
 ╰────────────────────╯
 
