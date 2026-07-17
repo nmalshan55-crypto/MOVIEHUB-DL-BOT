@@ -33,6 +33,26 @@ cmd({
 ├─「 *Music* 」
 │ • .song
 │
+├─「 *YouTube & TikTok* 」
+│ • .ytmp4 / .ytv
+│ • .tiktok / .tt
+│
+├─「 *Group Management* 」
+│ • .kick
+│ • .add / .invite
+│ • .promote
+│ • .demote
+│ • .admins
+│ • .tagall
+│ • .setpp
+│ • .open / .unmute
+│ • .close / .mute / .lock
+│ • .revoke
+│ • .grouplink / .link
+│ • .setsubject
+│ • .setdesc
+│ • .groupinfo / .ginfo
+│
 ├─「 *AI Assistant* 」
 │ • .gemini <question>
 │ • .sethu <ai girlfriend 😘>
