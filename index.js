@@ -18,7 +18,7 @@ const axios = require('axios')
 const { getMode } = require('./lib/botMode')
 const prefix = '.'
 
-const ownerNumber = ['94774527220']
+const ownerNumber = ['94724898578']
 
 const express = require('express')
 const app = express()
