@@ -65,7 +65,7 @@ cmd({
 
         // Send the custom image with menu as caption
         await conn.sendMessage(from, {
-            image: { url: "https://github.com/Shan-droid770/MOVIEHUB-DL-BOT/blob/985a36fe7a67b66a63879dd0affb2f53a7425b3a/img/moviehub%20dl%20moviebot.jpg" },
+            image: { url: "https://biakk-pissek4.hf.space/api/stream/secure/6a38af067006dd1c80422eb7/moviehub%20dl%20moviebot.jpg" },
             caption: menuText
         }, { quoted: m });
 
