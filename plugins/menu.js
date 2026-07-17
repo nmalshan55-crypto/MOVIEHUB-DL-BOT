@@ -67,7 +67,6 @@ cmd({
         // Send the custom image with menu as caption
         await conn.sendMessage(from, {
             image: { url: "https://biakk-pissek4.hf.space/api/stream/secure/6a38af067006dd1c80422eb7/moviehub%20dl%20moviebot.jpg" },
-            react: "🤖",
             caption: menuText
         }, { quoted: m });
 
