@@ -4,6 +4,7 @@ const { runtime } = require('../lib/functions');
 cmd({
     pattern: "ping",
     alias: ["p", "speed"],
+    react: "⏰",
     desc: "Check bot response speed and uptime.",
     category: "main",
     use: ".ping",
@@ -20,7 +21,7 @@ cmd({
 │ ⏰ *Uptime*: ${runtime(process.uptime())}
 │
 ╰───────────────────╯
-*MOVIEHUB-DL BOT*`;
+> *POWERED BY MOVIEHUB-DL BOT*`;
 
         await reply(status);
 
