@@ -8,9 +8,8 @@ if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
 cmd({
     pattern: "forward",
-    alias: ["fo"],
-    react: "💯",
-    desc: "Forward large documents without loading into memory",
+    alias: ["fwd"],
+    desc: "Forward large documents",
     category: "main",
     filename: __filename
 }, async (conn, mek, m, { q, reply }) => {
@@ -18,58 +17,51 @@ cmd({
         const quoted = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
         if (!quoted) return reply("❌ Reply to a message!");
 
-        if (!q?.trim()) return reply("❌ Provide target JID!");
+        if (!q?.trim()) return reply("❌ Provide JID!");
 
         const targetJid = q.trim();
         const msgType = Object.keys(quoted)[0];
 
         if (msgType === 'conversation' || msgType === 'extendedTextMessage') {
-            const text = quoted.conversation || quoted.extendedTextMessage?.text;
+            const text = quoted.conversation || quoted.extendedTextMessage?.text || '';
             await conn.sendMessage(targetJid, { text });
-            return reply(`✅ Forwarded to ${targetJid}`);
+            return reply(`✅ Forwarded!`);
         }
 
         const mediaMsg = quoted[msgType];
         const type = msgType.replace('Message', '').toLowerCase();
-        const downloadStream = await downloadContentFromMessage(mediaMsg, type);
+
+        const stream = await downloadContentFromMessage(mediaMsg, type);
+
+        let messageOptions = {};
 
         if (msgType === 'documentMessage') {
-            const ext = path.extname(mediaMsg.fileName || '.bin');
-            const tempPath = path.join(tempDir, `fwd_\( {Date.now()} \){ext}`);
+            const tempPath = path.join(tempDir, `doc_\( {Date.now()} \){path.extname(mediaMsg.fileName || '.bin')}`);
 
-            // Write stream
-            const writeStream = fs.createWriteStream(tempPath);
-            for await (const chunk of downloadStream) {
-                writeStream.write(chunk);
-            }
-            await new Promise((res, rej) => {
-                writeStream.end(res);
-                writeStream.on('error', rej);
-            });
+            const writer = fs.createWriteStream(tempPath);
+            for await (const chunk of stream) writer.write(chunk);
+            await new Promise((resolve) => writer.end(resolve));
 
-            // Send using fresh stream (low memory)
-            await conn.sendMessage(targetJid, {
-                document: fs.createReadStream(tempPath),
+            // Read as buffer for reliability
+            const buffer = fs.readFileSync(tempPath);
+
+            messageOptions = {
+                document: buffer,
                 fileName: mediaMsg.fileName || 'document',
                 mimetype: mediaMsg.mimetype || 'application/octet-stream',
                 caption: mediaMsg.caption || ''
-            });
+            };
 
-            // Cleanup
-            fs.unlink(tempPath, () => {});
-        } 
-        else {
-            // Small media - use buffer
-            const buffer = await streamToBuffer(downloadStream);
-            const options = { [type]: buffer };
-
-            if (mediaMsg.mimetype) options.mimetype = mediaMsg.mimetype;
-            if (mediaMsg.caption) options.caption = mediaMsg.caption;
-            if (msgType === 'audioMessage' && mediaMsg.ptt) options.ptt = true;
-
-            await conn.sendMessage(targetJid, options);
+            fs.unlinkSync(tempPath);
+        } else {
+            const buffer = await streamToBuffer(stream);
+            messageOptions[type] = buffer;
+            if (mediaMsg.mimetype) messageOptions.mimetype = mediaMsg.mimetype;
+            if (mediaMsg.caption) messageOptions.caption = mediaMsg.caption;
+            if (msgType === 'audioMessage' && mediaMsg.ptt) messageOptions.ptt = true;
         }
 
+        await conn.sendMessage(targetJid, messageOptions);
         reply(`✅ Forwarded to ${targetJid}`);
 
     } catch (e) {
