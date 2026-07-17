@@ -17,7 +17,7 @@ async (socket, msg, m, { from, args }) => {
 
     if (!args.length) {
         await socket.sendMessage(sender, {
-            text: `*❪ ERROR ❫*\n\n⚠️ *Invalid Usage!*\n\n🎬 *Example:*\n• .movie avatar\n• .m game of thrones\n\n📝 _Please provide the Movie_ _or TV Series name!_${DEFAULT_FOOTER}`
+            text: `*❪ ERROR ❫*\n\n⚠️ *Invalid Usage!*\n\n🎬 *Example:*\n• .movie avatar\n• .mv game of thrones\n\n📝 _Please provide the Movie_ _or TV Series name!_${DEFAULT_FOOTER}`
         }, { quoted: msg });
         return;
     }
@@ -40,7 +40,7 @@ async (socket, msg, m, { from, args }) => {
         );
 
         const resultsArrays = await Promise.all(promises);
-        const results = resultsArrays.flat().slice(0, 25);
+        const results = resultsArrays.flat().slice(0, 40);
 
         if (results.length === 0) {
             await socket.sendMessage(sender, {
@@ -55,7 +55,7 @@ async (socket, msg, m, { from, args }) => {
             const siteTag = item.site.toUpperCase();
             const typeIcon = item.type === 'tvshows' ? '📺' : '🎥';
             const num = (index + 1) < 10 ? `0${index + 1}` : `${index + 1}`;
-            listText += `*${num}* ➜ ${typeIcon} [_${siteTag}_] _${item.title.substring(0, 25)}_\n`;
+            listText += `*${num}* ➜ ${typeIcon} [_${siteTag}_] _${item.title.substring(0, 40)}_\n`;
         });
 
         listText += `${DEFAULT_FOOTER}`;
@@ -144,7 +144,7 @@ async (socket, msg, m, { from, args }) => {
                                         document: { url: finalLinkObj.link },
                                         mimetype: 'video/mp4',
                                         fileName: `${tvInfo.title} - 	ext ${episode.episode_name || 'Episode ' + (i+1)}.mp4`,
-                                        caption: `*📺 𝗖𝗛𝗔𝗠𝗔 𝗖𝗜𝗡𝗘 𝗦Ｅ𝗥𝗜Ｅ𝗦 📺*\\n\\n🎭 *Title:* ${tvInfo.title}\\n📌 *Episode:* ${episode.episode_name || 'Episode ' + (i+1)}\\n📊 *Quality:* Direct MP4\\n\\n${DEFAULT_FOOTER}`,
+                                        caption: `🎭 *Title:* ${tvInfo.title}\\n📌 *Episode:* ${episode.episode_name || 'Episode ' + (i+1)}\\n📊 *Quality:* Direct MP4\\n\\n${DEFAULT_FOOTER}`,
                                         jpegThumbnail: jpegThumbnail
                                     }, { quoted: replyMek });
                                     
@@ -252,7 +252,7 @@ async (socket, msg, m, { from, args }) => {
                                         document: { url: selectedDownload.link },
                                         mimetype: 'video/mp4',
                                         fileName: `${movieInfo.title} (${selectedDownload.quality}).mp4`,
-                                        caption: `*🎬 𝗖𝗛𝗔𝗠𝗔 𝗖𝗜𝗡𝗘 𝗠𝗢𝗩𝗜𝗘 🎬*\\n\\n🎭 *Title:* ${movieInfo.title}\\n🌟 *IMDB:* ${movieInfo.imdb || movieInfo.rating || 'N/A'}\\n📅 *Year:* ${movieInfo.year || 'N/A'}\\n📊 *Quality:* ${selectedDownload.quality}\\n💾 *Size:* ${selectedDownload.size || 'N/A'}\\n\\n${DEFAULT_FOOTER}`,
+                                        caption: `🎭 *Title:* ${movieInfo.title}\\n🌟 *IMDB:* ${movieInfo.imdb || movieInfo.rating || 'N/A'}\\n📅 *Year:* ${movieInfo.year || 'N/A'}\\n📊 *Quality:* ${selectedDownload.quality}\\n💾 *Size:* ${selectedDownload.size || 'N/A'}\\n\\n${DEFAULT_FOOTER}`,
                                         jpegThumbnail: jpegThumbnail
                                     }, { quoted: dlReplyMek });
                                 } catch (uploadErr) {
