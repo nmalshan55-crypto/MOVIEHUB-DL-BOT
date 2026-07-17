@@ -3,7 +3,7 @@ const { cmd } = require('../command');
 cmd({
     pattern: "forward",
     alias: ["fwd"],
-    desc: "Forward large files using original media key (Low Memory)",
+    desc: "Forward large files (Optimized Key Reuse)",
     category: "main",
     filename: __filename
 }, async (conn, mek, m, { q, reply }) => {
@@ -15,24 +15,29 @@ cmd({
         if (!q || !q.trim()) return reply("❌ Provide target JID!");
 
         const targetJid = q.trim();
+        const msgType = Object.keys(quotedMessage)[0];
 
-        // Clone the quoted message
-        const messageToSend = JSON.parse(JSON.stringify(quotedMessage));
+        // Text
+        if (msgType === 'conversation' || msgType === 'extendedTextMessage') {
+            const text = quotedMessage.conversation || quotedMessage.extendedTextMessage?.text || '';
+            await conn.sendMessage(targetJid, { text });
+            return reply(`✅ Forwarded to ${targetJid}`);
+        }
 
-        // Remove forwarded tag / contextInfo
-        const msgType = Object.keys(messageToSend)[0];
-        if (messageToSend[msgType]?.contextInfo) {
+        // Media - Clone and clean
+        let messageToSend = JSON.parse(JSON.stringify(quotedMessage));
+
+        // Clean contextInfo to remove forwarded tag
+        if (messageToSend[msgType]) {
             delete messageToSend[msgType].contextInfo;
         }
 
-        // Try to send using original media data
         await conn.sendMessage(targetJid, messageToSend);
 
         reply(`✅ Forwarded to ${targetJid}`);
 
     } catch (e) {
         console.error('Forward Error:', e);
-        reply(`❌ Error: ${e.message}\n\nTrying alternative method...`);
-      
+        reply(`❌ Error: ${e.message}`);
     }
 });
