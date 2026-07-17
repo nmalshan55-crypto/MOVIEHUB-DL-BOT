@@ -144,7 +144,7 @@ async (socket, msg, m, { from, args }) => {
                                         document: { url: finalLinkObj.link },
                                         mimetype: 'video/mp4',
                                         fileName: `${tvInfo.title} - 	ext ${episode.episode_name || 'Episode ' + (i+1)}.mp4`,
-                                        caption: `🎭 *Title:* ${tvInfo.title}\\n📌 *Episode:* ${episode.episode_name || 'Episode ' + (i+1)}\\n📊 *Quality:* Direct MP4\\n\\n${DEFAULT_FOOTER}`,
+                                        caption: `🎭 *Title:* ${tvInfo.title}\n📌 *Episode:* ${episode.episode_name || 'Episode ' + (i+1)}\n📊 *Quality:* Direct MP4 ${DEFAULT_FOOTER}`,
                                         jpegThumbnail: jpegThumbnail
                                     }, { quoted: replyMek });
                                     
@@ -252,7 +252,7 @@ async (socket, msg, m, { from, args }) => {
                                         document: { url: selectedDownload.link },
                                         mimetype: 'video/mp4',
                                         fileName: `${movieInfo.title} (${selectedDownload.quality}).mp4`,
-                                        caption: `🎭 *Title:* ${movieInfo.title}\\n🌟 *IMDB:* ${movieInfo.imdb || movieInfo.rating || 'N/A'}\\n📅 *Year:* ${movieInfo.year || 'N/A'}\\n📊 *Quality:* ${selectedDownload.quality}\\n💾 *Size:* ${selectedDownload.size || 'N/A'}\\n\\n${DEFAULT_FOOTER}`,
+                                        caption: `🎭 *Title:* ${movieInfo.title}\n🌟 *IMDB:* ${movieInfo.imdb || movieInfo.rating || 'N/A'}\n📅 *Year:* ${movieInfo.year || 'N/A'}\n📊 *Quality:* ${selectedDownload.quality}\n💾 *Size:* ${selectedDownload.size || 'N/A'} ${DEFAULT_FOOTER}`,
                                         jpegThumbnail: jpegThumbnail
                                     }, { quoted: dlReplyMek });
                                 } catch (uploadErr) {
