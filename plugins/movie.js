@@ -55,7 +55,7 @@ async (socket, msg, m, { from, args }) => {
             const siteTag = item.site.toUpperCase();
             const typeIcon = item.type === 'tvshows' ? '📺' : '🎥';
             const num = (index + 1) < 10 ? `0${index + 1}` : `${index + 1}`;
-            listText += `*${num}* ➜ ${typeIcon} _[${siteTag}]_ _${item.title.substring(0, 50)}_\n`;
+            listText += `*${num}* ➜ ${typeIcon} _[${siteTag}]_ _${item.title.substring(0, 24)}_\n`;
         });
 
         listText += `${DEFAULT_FOOTER}`;
