@@ -15,6 +15,7 @@ const config = require('./config')
 const util = require('util')
 const { sms, downloadMediaMessage } = require('./lib/msg')
 const axios = require('axios')
+const { getMode } = require('./lib/botMode')
 const prefix = '.'
 
 const ownerNumber = ['94774527220']
@@ -202,6 +203,7 @@ async function startBot(pairNumber) {
       const m = sms(currentSock, mek)
       const type = getContentType(mek.message)
       const from = mek.key.remoteJid
+      console.log(`[MSG] from=${from} type=${type} fromMe=${mek.key.fromMe}`)
       const quoted = type == 'extendedTextMessage' && mek.message.extendedTextMessage.contextInfo != null ? mek.message.extendedTextMessage.contextInfo.quotedMessage || [] : []
       const body = (type === 'conversation') ? mek.message.conversation : (type === 'extendedTextMessage') ? mek.message.extendedTextMessage.text : (type == 'imageMessage') && mek.message.imageMessage.caption ? mek.message.imageMessage.caption : (type == 'videoMessage') && mek.message.videoMessage.caption ? mek.message.videoMessage.caption : ''
       const isCmd = body.startsWith(prefix)
@@ -250,9 +252,15 @@ async function startBot(pairNumber) {
 
       const events = require('./command')
       const cmdName = isCmd ? body.slice(1).trim().split(' ')[0].toLowerCase() : false
+      if (isCmd) console.log(`[CMD] isCmd=${isCmd} cmdName=${cmdName} totalCommandsRegistered=${events.commands.length}`)
       if (isCmd) {
         const cmd = events.commands.find((cmd) => cmd.pattern === (cmdName)) || events.commands.find((cmd) => cmd.alias && cmd.alias.includes(cmdName))
         if (cmd) {
+          const mode = await getMode()
+          if (mode === 'private' && !isOwner) return
+          if (mode === 'inbox' && isGroup) return
+          if (mode === 'group' && !isGroup) return
+
           if (cmd.react) currentSock.sendMessage(from, { react: { text: cmd.react, key: mek.key } })
 
           try {
@@ -355,7 +363,7 @@ function renderPage() {
 </head>
 <body>
   <div class="card">
-    <h1>🤍 MOVIEHUB-DL-BOT</h1>
+    <h1>🤍 MOVIEHUB-DL-BOT 🤍</h1>
     <div class="sub">Link this bot to your WhatsApp account</div>
 
     <div id="form-section">
