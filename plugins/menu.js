@@ -45,6 +45,7 @@ cmd({
 │ • .demote
 │ • .admins
 │ • .tagall
+│ • .hidetag
 │ • .setpp
 │ • .open / .unmute
 │ • .close / .mute / .lock
@@ -54,9 +55,15 @@ cmd({
 │ • .setdesc
 │ • .groupinfo / .ginfo
 │
-├─「 *AI Assistant* 」
+├─「 *Owner Commands* 」
+│ • .jid
+│ • .mode
+│ • .sendtag
+│ • .forward
+│
+├─「 *AI Assistant (English/Singlish)* 」
 │ • .gemini <question>
-│ • .sethu <ai girlfriend 😘>
+│ • .sethu <ai girlfriend>
 │
 ╰────────────────────╯
 
