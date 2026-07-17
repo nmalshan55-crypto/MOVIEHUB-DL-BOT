@@ -7,7 +7,7 @@ function convertToBool(text, fault = 'true') {
 
 module.exports = {
     SESSION_ID: process.env.SESSION_ID || "",
-    ALIVE_IMG: process.env.ALIVE_IMG || "https://biakk-pissek5.hf.space/api/stream/secure/6a38af067006dd1c80422eb7/moviehub%20dl%20moviebot.jpg",
+    ALIVE_IMG: process.env.ALIVE_IMG || "https://github.com/Shan-droid770/MOVIEHUB-DL-BOT/blob/985a36fe7a67b66a63879dd0affb2f53a7425b3a/img/moviehub%20dl%20moviebot.jpg",
     ALIVE_MSG: process.env.ALIVE_MSG || "I'm Alive Now",
     MOVIE_API_KEY: process.env.API_KEY || "sky|2483faa7f5630311464123d017fc7acc2aec6da0",
 
