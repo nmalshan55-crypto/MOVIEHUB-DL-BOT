@@ -22,6 +22,7 @@ cmd({
 │ • .restart
 │
 ├─「 *Movie & Series* 」
+│ • .movie / .mv
 │ • .moviebox
 │ • .cineru
 │ • .cinemx
