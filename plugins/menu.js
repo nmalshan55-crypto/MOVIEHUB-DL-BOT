@@ -59,7 +59,7 @@ cmd({
 │ • .jid
 │ • .mode
 │ • .sendtag
-│ • .forward
+│ • .forward / .fo
 │
 ├─「 *AI Assistant (English/Singlish)* 」
 │ • .gemini <question>
