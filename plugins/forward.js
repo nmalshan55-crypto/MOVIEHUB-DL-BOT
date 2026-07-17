@@ -13,27 +13,24 @@ function getQuotedMessage(mek) {
 }
 
 function getMediaType(msgType) {
-  const map = {
+  return {
     imageMessage: 'image',
     videoMessage: 'video',
     audioMessage: 'audio',
     stickerMessage: 'sticker',
     documentMessage: 'document',
-    ptvMessage: 'ptv',
-  };
-  return map[msgType] || null;
+    ptvMessage: 'ptv'
+  }[msgType] || null;
 }
 
-function getFileExt(msgType, mediaMsg) {
-  const nameExt = mediaMsg?.fileName ? path.extname(mediaMsg.fileName) : '';
-  if (nameExt) return nameExt;
-
+function getExt(msgType, mediaMsg) {
+  const fromName = mediaMsg?.fileName ? path.extname(mediaMsg.fileName) : '';
+  if (fromName) return fromName;
   if (msgType === 'imageMessage') return '.jpg';
-  if (msgType === 'videoMessage') return '.mp4';
+  if (msgType === 'videoMessage' || msgType === 'ptvMessage') return '.mp4';
   if (msgType === 'audioMessage') return mediaMsg?.ptt ? '.ogg' : '.mp3';
   if (msgType === 'stickerMessage') return '.webp';
   if (msgType === 'documentMessage') return '.bin';
-  if (msgType === 'ptvMessage') return '.mp4';
   return '.bin';
 }
 
@@ -43,8 +40,8 @@ async function streamToFile(stream, filePath) {
 
 cmd({
   pattern: 'forward',
-  alias: ['fo'],
-  desc: 'Forward quoted message or media',
+  alias: ['fwd'],
+  desc: 'Forward quoted message',
   category: 'main',
   filename: __filename
 }, async (conn, mek, m, { q, reply }) => {
@@ -52,7 +49,6 @@ cmd({
 
   try {
     const quotedMessage = getQuotedMessage(mek);
-
     if (!quotedMessage) return reply('❌ Reply to a message first.');
     if (!q || !q.trim()) return reply('❌ Provide a target JID.');
 
@@ -63,7 +59,6 @@ cmd({
     if (msgType === 'conversation' || msgType === 'extendedTextMessage') {
       const text = quotedMessage.conversation || quotedMessage.extendedTextMessage?.text || '';
       if (!text) return reply('❌ Empty text message.');
-
       await conn.sendMessage(targetJid, { text });
       return reply(`✅ Forwarded to ${targetJid}`);
     }
@@ -72,46 +67,45 @@ cmd({
     if (!mediaType) return reply(`❌ Unsupported message type: ${msgType}`);
 
     const stream = await downloadContentFromMessage(mediaMsg, mediaType);
-    const ext = getFileExt(msgType, mediaMsg);
-    tempPath = path.join(tempDir, `fwd_${Date.now()}${ext}`);
-
+    tempPath = path.join(tempDir, `fwd_${Date.now()}${getExt(msgType, mediaMsg)}`);
     await streamToFile(stream, tempPath);
 
-    const options = {};
     const fileStream = fs.createReadStream(tempPath);
 
-    if (msgType === 'documentMessage') {
-      options.document = fileStream;
-      options.fileName = mediaMsg.fileName || `document${ext}`;
-      options.mimetype = mediaMsg.mimetype || 'application/octet-stream';
-      if (mediaMsg.caption) options.caption = mediaMsg.caption;
-    } else if (msgType === 'imageMessage') {
-      options.image = fileStream;
-      options.mimetype = mediaMsg.mimetype || 'image/jpeg';
-      if (mediaMsg.caption) options.caption = mediaMsg.caption;
+    const message = {};
+    if (msgType === 'imageMessage') {
+      message.image = fileStream;
+      if (mediaMsg.caption) message.caption = mediaMsg.caption;
+      message.mimetype = mediaMsg.mimetype || 'image/jpeg';
     } else if (msgType === 'videoMessage' || msgType === 'ptvMessage') {
-      options.video = fileStream;
-      options.mimetype = mediaMsg.mimetype || 'video/mp4';
-      if (mediaMsg.caption) options.caption = mediaMsg.caption;
-      if (msgType === 'ptvMessage' || mediaMsg.ptv) options.ptv = true;
+      message.video = fileStream;
+      if (mediaMsg.caption) message.caption = mediaMsg.caption;
+      message.mimetype = mediaMsg.mimetype || 'video/mp4';
+      if (msgType === 'ptvMessage' || mediaMsg.ptv) message.ptv = true;
     } else if (msgType === 'audioMessage') {
-      options.audio = fileStream;
-      options.mimetype = mediaMsg.mimetype || 'audio/ogg';
-      if (mediaMsg.ptt) options.ptt = true;
+      message.audio = fileStream;
+      message.mimetype = mediaMsg.mimetype || 'audio/ogg';
+      if (mediaMsg.ptt) message.ptt = true;
+    } else if (msgType === 'documentMessage') {
+      message.document = fileStream;
+      message.fileName = mediaMsg.fileName || `document${getExt(msgType, mediaMsg)}`;
+      message.mimetype = mediaMsg.mimetype || 'application/octet-stream';
+      if (mediaMsg.caption) message.caption = mediaMsg.caption;
     } else if (msgType === 'stickerMessage') {
-      options.sticker = fileStream;
-    } else {
-      return reply(`❌ Unsupported media type: ${msgType}`);
+      message.sticker = fileStream;
     }
 
-    await conn.sendMessage(targetJid, options);
+    await conn.sendMessage(targetJid, message);
+
+    fileStream.close();
+    fs.unlink(tempPath, () => {});
     return reply(`✅ Forwarded successfully to ${targetJid}`);
   } catch (e) {
     console.error('Forward Error:', e);
     return reply(`❌ Error: ${e.message}`);
   } finally {
-    if (tempPath) {
-      fs.unlink(tempPath, () => {});
+    if (tempPath && fs.existsSync(tempPath)) {
+      setTimeout(() => fs.unlink(tempPath, () => {}), 10000);
     }
   }
 });
