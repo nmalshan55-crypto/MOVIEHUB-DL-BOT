@@ -9,7 +9,7 @@ if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 cmd({
     pattern: "forward",
     alias: ["fwd"],
-    desc: "Forward any message without tag (Fixed for large documents)",
+    desc: "Forward message without forwarded tag (Large file support)",
     category: "main",
     filename: __filename
 }, async (conn, mek, m, { q, reply }) => {
@@ -17,54 +17,53 @@ cmd({
         const quoted = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
         if (!quoted) return reply("❌ Reply to a message!");
 
-        if (!q?.trim()) return reply("❌ *Provide JID*\n`.forward 947xxxxxxxx@s.whatsapp.net`");
+        if (!q?.trim()) return reply("❌ Provide JID!");
 
         const targetJid = q.trim();
         const msgType = Object.keys(quoted)[0];
 
-        // Text
         if (msgType === 'conversation' || msgType === 'extendedTextMessage') {
             const text = quoted.conversation || quoted.extendedTextMessage?.text;
             await conn.sendMessage(targetJid, { text });
-            return reply(`✅ Forwarded to ${targetJid}`);
+            return reply(`✅ Forwarded!`);
         }
 
         const mediaMsg = quoted[msgType];
         const type = msgType.replace('Message', '').toLowerCase();
-        const stream = await downloadContentFromMessage(mediaMsg, type);
+        const downloadStream = await downloadContentFromMessage(mediaMsg, type);
 
-        let options = { mimetype: mediaMsg.mimetype };
+        let options = {};
 
         if (msgType === 'documentMessage') {
             const ext = path.extname(mediaMsg.fileName || '.bin');
             const tempPath = path.join(tempDir, `fwd_\( {Date.now()} \){ext}`);
 
-            // Write to temp file
+            // Save to temp
             const writeStream = fs.createWriteStream(tempPath);
-            for await (const chunk of stream) {
+            for await (const chunk of downloadStream) {
                 writeStream.write(chunk);
             }
-            await new Promise((resolve, reject) => {
-                writeStream.end(resolve);
-                writeStream.on('error', reject);
-            });
+            await new Promise((res, rej) => writeStream.end(res));
 
-            // Read fresh stream for Baileys
-            options.document = fs.createReadStream(tempPath);
-            options.fileName = mediaMsg.fileName || 'document';
-            options.caption = mediaMsg.caption || '';
+            // Read as Buffer (stable for Baileys)
+            const buffer = fs.readFileSync(tempPath);
 
-            // Cleanup after 10 seconds
-            setTimeout(() => fs.unlink(tempPath, () => {}), 10000);
-        } 
-        else {
-            // Image, Video, Audio, Sticker
-            const buffer = await streamToBuffer(stream);
+            options = {
+                document: buffer,
+                fileName: mediaMsg.fileName || 'document.pdf',
+                mimetype: mediaMsg.mimetype || 'application/octet-stream',
+                caption: mediaMsg.caption || ''
+            };
+
+            fs.unlinkSync(tempPath); // immediate cleanup
+        } else {
+            // Other media
+            const buffer = await streamToBuffer(downloadStream);
             options[type] = buffer;
 
+            if (mediaMsg.mimetype) options.mimetype = mediaMsg.mimetype;
             if (mediaMsg.caption) options.caption = mediaMsg.caption;
             if (msgType === 'audioMessage' && mediaMsg.ptt) options.ptt = true;
-            if (msgType === 'stickerMessage') delete options.mimetype;
         }
 
         await conn.sendMessage(targetJid, options);
@@ -80,4 +79,4 @@ async function streamToBuffer(stream) {
     const chunks = [];
     for await (const chunk of stream) chunks.push(chunk);
     return Buffer.concat(chunks);
-        }
+}
