@@ -8,11 +8,11 @@ const { pipeline } = require('stream/promises');
 const tempDir = path.join(os.tmpdir(), 'forward-plugin');
 if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
-function getQuotedMessage(mek) {
+function quoted(mek) {
   return mek.message?.extendedTextMessage?.contextInfo?.quotedMessage || null;
 }
 
-function getMediaType(msgType) {
+function mediaType(msgType) {
   return {
     imageMessage: 'image',
     videoMessage: 'video',
@@ -23,18 +23,17 @@ function getMediaType(msgType) {
   }[msgType] || null;
 }
 
-function getExt(msgType, mediaMsg) {
-  const fromName = mediaMsg?.fileName ? path.extname(mediaMsg.fileName) : '';
-  if (fromName) return fromName;
+function extOf(msgType, mediaMsg) {
+  const ext = mediaMsg?.fileName ? path.extname(mediaMsg.fileName) : '';
+  if (ext) return ext;
   if (msgType === 'imageMessage') return '.jpg';
   if (msgType === 'videoMessage' || msgType === 'ptvMessage') return '.mp4';
   if (msgType === 'audioMessage') return mediaMsg?.ptt ? '.ogg' : '.mp3';
   if (msgType === 'stickerMessage') return '.webp';
-  if (msgType === 'documentMessage') return '.bin';
   return '.bin';
 }
 
-async function streamToFile(stream, filePath) {
+async function saveStream(stream, filePath) {
   await pipeline(stream, fs.createWriteStream(filePath));
 }
 
@@ -45,67 +44,72 @@ cmd({
   category: 'main',
   filename: __filename
 }, async (conn, mek, m, { q, reply }) => {
-  let tempPath = null;
+  let tempPath;
 
   try {
-    const quotedMessage = getQuotedMessage(mek);
-    if (!quotedMessage) return reply('❌ Reply to a message first.');
+    const qmsg = quoted(mek);
+    if (!qmsg) return reply('❌ Reply to a message first.');
     if (!q || !q.trim()) return reply('❌ Provide a target JID.');
 
-    const targetJid = q.trim();
-    const msgType = Object.keys(quotedMessage)[0];
-    const mediaMsg = quotedMessage[msgType];
+    const jid = q.trim();
+    const msgType = Object.keys(qmsg)[0];
+    const msg = qmsg[msgType];
 
     if (msgType === 'conversation' || msgType === 'extendedTextMessage') {
-      const text = quotedMessage.conversation || quotedMessage.extendedTextMessage?.text || '';
-      if (!text) return reply('❌ Empty text message.');
-      await conn.sendMessage(targetJid, { text });
-      return reply(`✅ Forwarded to ${targetJid}`);
+      const text = qmsg.conversation || qmsg.extendedTextMessage?.text || '';
+      if (!text) return reply('❌ Empty text.');
+      await conn.sendMessage(jid, { text });
+      return reply(`✅ Forwarded to ${jid}`);
     }
 
-    const mediaType = getMediaType(msgType);
-    if (!mediaType) return reply(`❌ Unsupported message type: ${msgType}`);
+    const type = mediaType(msgType);
+    if (!type) return reply(`❌ Unsupported type: ${msgType}`);
 
-    const stream = await downloadContentFromMessage(mediaMsg, mediaType);
-    tempPath = path.join(tempDir, `fwd_${Date.now()}${getExt(msgType, mediaMsg)}`);
-    await streamToFile(stream, tempPath);
+    const stream = await downloadContentFromMessage(msg, type);
+    tempPath = path.join(tempDir, `fwd_${Date.now()}${extOf(msgType, msg)}`);
+    await saveStream(stream, tempPath);
 
-    const fileStream = fs.createReadStream(tempPath);
+    let payload = {};
 
-    const message = {};
     if (msgType === 'imageMessage') {
-      message.image = fileStream;
-      if (mediaMsg.caption) message.caption = mediaMsg.caption;
-      message.mimetype = mediaMsg.mimetype || 'image/jpeg';
+      payload = {
+        image: { url: tempPath },
+        mimetype: msg.mimetype || 'image/jpeg',
+        caption: msg.caption || undefined
+      };
     } else if (msgType === 'videoMessage' || msgType === 'ptvMessage') {
-      message.video = fileStream;
-      if (mediaMsg.caption) message.caption = mediaMsg.caption;
-      message.mimetype = mediaMsg.mimetype || 'video/mp4';
-      if (msgType === 'ptvMessage' || mediaMsg.ptv) message.ptv = true;
+      payload = {
+        video: { url: tempPath },
+        mimetype: msg.mimetype || 'video/mp4',
+        caption: msg.caption || undefined,
+        ptv: msgType === 'ptvMessage' || !!msg.ptv
+      };
     } else if (msgType === 'audioMessage') {
-      message.audio = fileStream;
-      message.mimetype = mediaMsg.mimetype || 'audio/ogg';
-      if (mediaMsg.ptt) message.ptt = true;
+      payload = {
+        audio: { url: tempPath },
+        mimetype: msg.mimetype || 'audio/ogg',
+        ptt: !!msg.ptt
+      };
     } else if (msgType === 'documentMessage') {
-      message.document = fileStream;
-      message.fileName = mediaMsg.fileName || `document${getExt(msgType, mediaMsg)}`;
-      message.mimetype = mediaMsg.mimetype || 'application/octet-stream';
-      if (mediaMsg.caption) message.caption = mediaMsg.caption;
+      payload = {
+        document: { url: tempPath },
+        mimetype: msg.mimetype || 'application/octet-stream',
+        fileName: msg.fileName || `document${extOf(msgType, msg)}`,
+        caption: msg.caption || undefined
+      };
     } else if (msgType === 'stickerMessage') {
-      message.sticker = fileStream;
+      payload = {
+        sticker: { url: tempPath }
+      };
     }
 
-    await conn.sendMessage(targetJid, message);
+    await conn.sendMessage(jid, payload);
 
-    fileStream.close();
-    fs.unlink(tempPath, () => {});
-    return reply(`✅ Forwarded successfully to ${targetJid}`);
+    return reply(`✅ Forwarded successfully to ${jid}`);
   } catch (e) {
     console.error('Forward Error:', e);
     return reply(`❌ Error: ${e.message}`);
   } finally {
-    if (tempPath && fs.existsSync(tempPath)) {
-      setTimeout(() => fs.unlink(tempPath, () => {}), 10000);
-    }
+    if (tempPath) setTimeout(() => fs.unlink(tempPath, () => {}), 15000);
   }
 });
