@@ -32,7 +32,7 @@ cmd({
 
         const mentions = groupMeta.participants.map(p => p.id);
 
-        await conn.sendMessage(targetJid, { text, mentions }, { quoted: m });
+        await conn.sendMessage(targetJid, { text, mentions });
         await reply(`✅ *Tag sent to group:* ${groupMeta.subject || targetJid}`);
     } catch (e) {
         console.error('Sendtag error:', e);
