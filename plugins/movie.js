@@ -40,7 +40,7 @@ async (socket, msg, m, { from, args }) => {
         );
 
         const resultsArrays = await Promise.all(promises);
-        const results = resultsArrays.flat().slice(0, 40);
+        const results = resultsArrays.flat().slice(0, 50);
 
         if (results.length === 0) {
             await socket.sendMessage(sender, {
@@ -49,13 +49,13 @@ async (socket, msg, m, { from, args }) => {
             return;
         }
 
-        let listText = `*❪ MULTI-SOURCE SEARCH RESULTS ❫*\n\n🎯 *Query:* _${query}_\n📊 *Results:* _	ext ${results.length} Items_\n\n*👇 SELECT A NUMBER 👇*\n\n`;
+        let listText = `*❪ MULTI-SOURCE SEARCH RESULTS ❫*\n\n🎯 *Query:* _${query}_\n📊 *Results:* _Found ${results.length} Items_\n\n*👇 SELECT A NUMBER 👇*\n\n`;
 
         results.forEach((item, index) => {
             const siteTag = item.site.toUpperCase();
             const typeIcon = item.type === 'tvshows' ? '📺' : '🎥';
             const num = (index + 1) < 10 ? `0${index + 1}` : `${index + 1}`;
-            listText += `*${num}* ➜ ${typeIcon} [_${siteTag}_] _${item.title.substring(0, 40)}_\n`;
+            listText += `*${num}* ➜ ${typeIcon} _[${siteTag}]_ _${item.title.substring(0, 50)}_\n`;
         });
 
         listText += `${DEFAULT_FOOTER}`;
