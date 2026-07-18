@@ -1,8 +1,5 @@
 const { cmd } = require("../command");
-const {
-  generateWAMessageFromContent,
-  generateForwardMessageContent,
-} = require("@whiskeysockets/baileys");
+const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 
 cmd(
   {
@@ -13,13 +10,14 @@ cmd(
     category: "tools",
     filename: __filename,
   },
-  async (bot, mek, m, { from, q, reply, quoted }) => {
+  async (bot, mek, m, { from, q, reply }) => {
     try {
-      if (!quoted) return reply("↩️ Reply to a document with:\n.rename NewFileName | New caption");
+      const ctx = mek.message?.extendedTextMessage?.contextInfo;
+      if (!ctx || !ctx.quotedMessage) return reply("↩️ Reply to a document with:\n.rename NewFileName | New caption");
       if (!q || !q.includes("|"))
-        return reply("📌 Format: .rename NewFileName | New caption\n\nExample:\n.rename Avatar: Fire & Ash (2026) With Sinhala Subtitle | *Avatar: Fire & Ash (2026) With Sinhala Subtitle*/n/n`[WEB-DL 720P]`/n/n> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴍᴏᴠɪᴇʜᴜʙ-ᴅʟ ᴍᴏᴠɪᴇ ʙᴏᴛ*");
+        return reply("📌 Format: .rename NewFileName | New caption");
 
-      const docMsg = quoted.message?.documentMessage;
+      const docMsg = ctx.quotedMessage.documentMessage;
       if (!docMsg) return reply("❌ The replied message isn't a document.");
 
       const [rawName, rawCaption] = q.split("|");
@@ -28,17 +26,26 @@ cmd(
       if (!newName) return reply("❌ File name can't be empty.");
 
       const ext = docMsg.fileName?.includes(".") ? docMsg.fileName.split(".").pop() : "pdf";
+      const quotedKey = { remoteJid: from, id: ctx.stanzaId, participant: ctx.participant, fromMe: false };
 
-      // Only the metadata is touched here — url/mediaKey/directPath/fileLength
-      // are copied through untouched, so nothing is downloaded or re-uploaded.
-      const content = await generateForwardMessageContent({ message: quoted.message }, true);
-      const ctype = Object.keys(content)[0]; // "documentMessage"
+      reply("⏳ Renaming...");
 
-      content[ctype].fileName = `${newName}.${ext}`;
-      content[ctype].caption = newCaption;
+      const buffer = await downloadMediaMessage(
+        { key: quotedKey, message: ctx.quotedMessage },
+        "buffer",
+        {}
+      );
 
-      const waMessage = await generateWAMessageFromContent(from, content, { quoted: mek });
-      await bot.relayMessage(from, waMessage.message, { messageId: waMessage.key.id });
+      await bot.sendMessage(
+        from,
+        {
+          document: buffer,
+          fileName: `${newName}.${ext}`,
+          mimetype: docMsg.mimetype || "application/octet-stream",
+          caption: newCaption,
+        },
+        { quoted: mek }
+      );
     } catch (e) {
       console.log("RENAME ERROR:", e);
       reply("❌ Rename failed: " + e.message);
