@@ -1,76 +1,47 @@
-const { cmd } = require('../command');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-const fs = require('fs');
-const path = require('path');
+const { cmd } = require("../command");
+const {
+  generateWAMessageFromContent,
+  generateForwardMessageContent,
+} = require("@whiskeysockets/baileys");
 
-const tempDir = path.join(__dirname, '../temp');
-if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
-}
-
-cmd({
+cmd(
+  {
     pattern: "rename",
-    desc: "Rename document (filename + caption) | video/audio (caption only)",
-    category: "main",
-    filename: __filename
-}, async (conn, mek, m, { q, reply }) => {
+    alias: ["rname"],
+    react: "💬",
+    desc: "Rename a document's file name and caption instantly (no re-upload)",
+    category: "tools",
+    filename: __filename,
+  },
+  async (bot, mek, m, { from, q, reply, quoted }) => {
     try {
-        const contextInfo = mek.message?.extendedTextMessage?.contextInfo;
-        const quotedMessage = contextInfo?.quotedMessage;
+      if (!quoted) return reply("↩️ Reply to a document with:\n.rename NewFileName | New caption");
+      if (!q || !q.includes("|"))
+        return reply("📌 Format: .rename NewFileName | New caption\n\nExample:\n.rename Avatar: Fire & Ash (2026) With Sinhala Subtitle | *Avatar: Fire & Ash (2026) With Sinhala Subtitle*/n/n`[WEB-DL 720P]`/n/n> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴍᴏᴠɪᴇʜᴜʙ-ᴅʟ ᴍᴏᴠɪᴇ ʙᴏᴛ*");
 
-        if (!quotedMessage) return reply("❌ Reply to a document/video/audio!");
-        if (!q) return reply("❌ Provide new name/caption!");
+      const docMsg = quoted.message?.documentMessage;
+      if (!docMsg) return reply("❌ The replied message isn't a document.");
 
-        const newValue = q.trim();
-        const msgType = Object.keys(quotedMessage)[0];
+      const [rawName, rawCaption] = q.split("|");
+      const newName = rawName.trim();
+      const newCaption = rawCaption ? rawCaption.trim() : "";
+      if (!newName) return reply("❌ File name can't be empty.");
 
-        if (!['documentMessage', 'videoMessage', 'audioMessage'].includes(msgType)) {
-            return reply("❌ Only documents, videos, and audios supported.");
-        }
+      const ext = docMsg.fileName?.includes(".") ? docMsg.fileName.split(".").pop() : "pdf";
 
-        const mediaMsg = quotedMessage[msgType];
-        const stream = await downloadContentFromMessage(mediaMsg, msgType.replace('Message', ''));
+      // Only the metadata is touched here — url/mediaKey/directPath/fileLength
+      // are copied through untouched, so nothing is downloaded or re-uploaded.
+      const content = await generateForwardMessageContent({ message: quoted.message }, true);
+      const ctype = Object.keys(content)[0]; // "documentMessage"
 
-        let payload = {};
-        let tempPath = null;
+      content[ctype].fileName = `${newName}.${ext}`;
+      content[ctype].caption = newCaption;
 
-        if (msgType === 'documentMessage') {
-            const ext = path.extname(newValue) || path.extname(mediaMsg.fileName || '') || '.pdf';
-            const fileName = newValue.includes('.') ? newValue : newValue + ext;
-
-            tempPath = path.join(tempDir, `rename_\( {Date.now()} \){ext}`);
-            const writeStream = fs.createWriteStream(tempPath);
-            for await (const chunk of stream) writeStream.write(chunk);
-            await new Promise(r => writeStream.end(r));
-
-            payload = {
-                document: fs.createReadStream(tempPath),
-                fileName: fileName,
-                mimetype: mediaMsg.mimetype,
-                caption: newValue
-            };
-        } else {
-            const buffer = await streamToBuffer(stream);
-            payload = {
-                [msgType === 'videoMessage' ? 'video' : 'audio']: buffer,
-                mimetype: mediaMsg.mimetype,
-                caption: newValue,
-                ptt: msgType === 'audioMessage' && mediaMsg.ptt
-            };
-        }
-
-        await conn.sendMessage(mek.key.remoteJid, payload);
-
-        if (tempPath) fs.unlink(tempPath, () => {});
-        reply("✅ Renamed successfully!");
+      const waMessage = await generateWAMessageFromContent(from, content, { quoted: mek });
+      await bot.relayMessage(from, waMessage.message, { messageId: waMessage.key.id });
     } catch (e) {
-        console.error('Rename error:', e);
-        reply(`❌ Error: ${e.message}`);
+      console.log("RENAME ERROR:", e);
+      reply("❌ Rename failed: " + e.message);
     }
-});
-
-async function streamToBuffer(stream) {
-    const chunks = [];
-    for await (const chunk of stream) chunks.push(chunk);
-    return Buffer.concat(chunks);
-}
+  }
+);
