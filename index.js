@@ -20,6 +20,31 @@ const prefix = '.'
 
 const ownerNumber = ['94724898578']
 
+// =========================== AUTO NEWSLETTER FOLLOW + AUTO REACT ===========================
+// Add the JID(s) of your own WhatsApp Channel(s) here (ends with @newsletter).
+// Get it from Channel info -> Share -> Copy link, e.g. https://whatsapp.com/channel/XXXXXXXXX
+// then resolve it once with: await sock.newsletterMetadata('invite', 'XXXXXXXXX')
+// and copy the "id" field from the result.
+const NEWSLETTER_JIDS = [
+  '120363427760007429@newsletter'
+]
+const NEWSLETTER_REACT_EMOJIS = ['❤️', '🔥', '👍', '😍', '🎉']
+
+// Follows every configured newsletter. Safe to call repeatedly -- Baileys/WhatsApp
+// just no-ops if you're already following, so we swallow errors instead of tracking state.
+async function autoFollowNewsletters(currentSock) {
+  for (const jid of NEWSLETTER_JIDS) {
+    if (!jid || jid.includes('XXXXXXXXXX')) continue // skip the placeholder
+    try {
+      await currentSock.newsletterFollow(jid)
+      console.log(`[NEWSLETTER] Following ${jid} ✅`)
+    } catch (e) {
+      // already following, or a transient error -- not worth crashing the bot over
+      console.log(`[NEWSLETTER] Follow skipped for ${jid}: ${e.message}`)
+    }
+  }
+}
+
 const express = require('express')
 const app = express()
 const port = process.env.PORT || 5000
@@ -169,6 +194,7 @@ async function startBot(pairNumber) {
         clearPairingTimer()
         console.log('Bot connected to WhatsApp ✅')
         loadPlugins()
+        autoFollowNewsletters(currentSock).catch(() => {})
 
         const up = ` connected successful ✅\n\nPREFIX: ${prefix}`
         currentSock.sendMessage(ownerNumber[0] + '@s.whatsapp.net', { image: { url: config.ALIVE_IMG }, caption: up }).catch(() => {})
@@ -200,6 +226,21 @@ async function startBot(pairNumber) {
       if (!mek.message) return
       mek.message = (getContentType(mek.message) === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
       if (mek.key && mek.key.remoteJid === 'status@broadcast') return
+
+      if (mek.key && mek.key.remoteJid && mek.key.remoteJid.endsWith('@newsletter')) {
+        try {
+          // Newsletter posts use a "server id" for reactions, not the normal message key id.
+          // Baileys exposes it as mek.newsletterServerId on the WebMessageInfo object.
+          const serverId = mek.newsletterServerId || mek.key.id
+          const emoji = NEWSLETTER_REACT_EMOJIS[Math.floor(Math.random() * NEWSLETTER_REACT_EMOJIS.length)]
+          await currentSock.newsletterReactMessage(mek.key.remoteJid, String(serverId), emoji)
+          console.log(`[NEWSLETTER] Reacted ${emoji} to post ${serverId} in ${mek.key.remoteJid}`)
+        } catch (e) {
+          console.log('[NEWSLETTER] React failed:', e.message)
+        }
+        return // channel posts aren't chat messages -- nothing else below applies to them
+      }
+
       const m = sms(currentSock, mek)
       const type = getContentType(mek.message)
       const from = mek.key.remoteJid
