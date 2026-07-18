@@ -4,7 +4,9 @@ const {
   jidNormalizedUser,
   getContentType,
   fetchLatestBaileysVersion,
-  Browsers
+  Browsers,
+  generateForwardMessageContent,
+  generateWAMessageFromContent
 } = require('@whiskeysockets/baileys')
 
 const { getBuffer, getGroupAdmins, getRandom, h2k, isUrl, Json, runtime, sleep, fetchJson } = require('./lib/functions')
@@ -289,6 +291,29 @@ async function startBot(pairNumber) {
         if (mime.split('/')[0] === 'audio') {
           return currentSock.sendMessage(jid, { audio: await getBuffer(url), caption: caption, mimetype: 'audio/mpeg', ...options }, { quoted: quoted, ...options })
         }
+      }
+
+      currentSock.forwardMessage = async (jid, message, forceForward = false, options = {}) => {
+        if (options.readViewOnce) {
+          message.message = message.message && message.message.ephemeralMessage && message.message.ephemeralMessage.message ? message.message.ephemeralMessage.message : (message.message || undefined)
+          const vtype = Object.keys(message.message.viewOnceMessage.message)[0]
+          delete message.message.viewOnceMessage.message[vtype].viewOnce
+          message.message = { ...message.message.viewOnceMessage.message }
+        }
+
+        const mtype = Object.keys(message.message)[0]
+        const content = await generateForwardMessageContent(message, forceForward)
+        const ctype = Object.keys(content)[0]
+        const context = mtype != 'conversation' ? (message.message[mtype].contextInfo || {}) : {}
+        content[ctype].contextInfo = { ...context, ...content[ctype].contextInfo }
+
+        const waMessage = await generateWAMessageFromContent(jid, content, options ? {
+          ...content[ctype],
+          ...options,
+          ...(options.contextInfo ? { contextInfo: { ...content[ctype].contextInfo, ...options.contextInfo } } : {})
+        } : {})
+        await currentSock.relayMessage(jid, waMessage.message, { messageId: waMessage.key.id })
+        return waMessage
       }
 
       const events = require('./command')
