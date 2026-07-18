@@ -22,6 +22,7 @@ cmd({
 │ • .restart
 │
 ├─「 *Movie & Series* 」
+│ • .movie
 │ • .moviebox
 │ • .cineru
 │ • .cinemx
@@ -60,6 +61,7 @@ cmd({
 │ • .mode
 │ • .sendtag
 │ • .forward / .fo
+│ • .rename
 │
 ├─「 *AI Assistant (English/Singlish)* 」
 │ • .gemini <question>

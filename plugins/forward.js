@@ -1,86 +1,29 @@
-const { cmd } = require('../command');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { pipeline } = require('stream/promises');
+const { cmd } = require("../command");
 
-const tempDir = path.join(os.tmpdir(), 'forward-plugin');
-if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-
-cmd({
+cmd(
+  {
     pattern: "forward",
-    alias: ["fwd"],
-    desc: "Forward message (Best for large files)",
-    category: "main",
-    filename: __filename
-}, async (conn, mek, m, { q, reply }) => {
-    let tempPath = null;
-
+    alias: ["fo"],
+    react: "📌",
+    desc: "Forward the replied message to another chat",
+    category: "tools",
+    filename: __filename,
+  },
+  async (bot, mek, m, { from, q, reply }) => {
     try {
-        const quoted = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-        if (!quoted) return reply("❌ Reply to a message first!");
+      const ctx = mek.message?.extendedTextMessage?.contextInfo;
+      if (!ctx || !ctx.quotedMessage) return reply("↩️ Reply to the message you want to forward, then run:\n.forward <jid>");
+      if (!q) return reply("📌 Give me a target chat.\nPerson: .forward 94771234567@s.whatsapp.net\nGroup: .forward 120363012345678901@g.us");
 
-        if (!q || !q.trim()) return reply("❌ Provide target JID!");
+      const targetJid = q.trim();
+      const quotedKey = { remoteJid: from, id: ctx.stanzaId, participant: ctx.participant, fromMe: false };
+      const quotedFull = { key: quotedKey, message: ctx.quotedMessage };
 
-        const jid = q.trim();
-        const msgType = Object.keys(quoted)[0];
-        const media = quoted[msgType];
-
-        // Text
-        if (msgType === 'conversation' || msgType === 'extendedTextMessage') {
-            const text = quoted.conversation || quoted.extendedTextMessage?.text || '';
-            await conn.sendMessage(jid, { text });
-            return reply(`✅ Forwarded to ${jid}`);
-        }
-
-        const type = {
-            imageMessage: 'image',
-            videoMessage: 'video',
-            audioMessage: 'audio',
-            stickerMessage: 'sticker',
-            documentMessage: 'document'
-        }[msgType];
-
-        if (!type) return reply(`❌ Unsupported: ${msgType}`);
-
-        // Stream to disk
-        const stream = await downloadContentFromMessage(media, type);
-        tempPath = path.join(tempDir, `fwd_\( {Date.now()} \){path.extname(media.fileName || '.bin')}`);
-        await pipeline(stream, fs.createWriteStream(tempPath));
-
-        // Send using url (Best for large files)
-        const payload = {
-            mimetype: media.mimetype,
-            caption: media.caption || '',
-            fileName: media.fileName,
-            ptt: msgType === 'audioMessage' ? !!media.ptt : undefined
-        };
-
-        if (msgType === 'documentMessage') {
-            payload.document = { url: tempPath };
-            payload.fileName = media.fileName || 'document';
-        } else if (msgType === 'imageMessage') {
-            payload.image = { url: tempPath };
-        } else if (msgType === 'videoMessage') {
-            payload.video = { url: tempPath };
-        } else if (msgType === 'audioMessage') {
-            payload.audio = { url: tempPath };
-        } else if (msgType === 'stickerMessage') {
-            payload.sticker = { url: tempPath };
-            delete payload.mimetype;
-        }
-
-        await conn.sendMessage(jid, payload);
-
-        reply(`✅ Forwarded to ${jid}`);
-
+      await bot.forwardMessage(targetJid, quotedFull, true);
+      await reply(`✅ Forwarded to ${targetJid}`);
     } catch (e) {
-        console.error('Forward Error:', e);
-        reply(`❌ Error: ${e.message}`);
-    } finally {
-        if (tempPath) {
-            setTimeout(() => fs.unlink(tempPath, () => {}), 15000);
-        }
+      console.log("FORWARD ERROR:", e);
+      reply("❌ Forward failed: " + e.message);
     }
-});
+  }
+);
