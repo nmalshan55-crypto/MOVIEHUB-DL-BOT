@@ -9,15 +9,17 @@ cmd(
     category: "tools",
     filename: __filename,
   },
-  async (bot, mek, m, { from, q, reply, quoted }) => {
+  async (bot, mek, m, { from, q, reply }) => {
     try {
-      if (!quoted) return reply("↩️ Reply to the message you want to forward, then run:\n.forward <jid>");
+      const ctx = mek.message?.extendedTextMessage?.contextInfo;
+      if (!ctx || !ctx.quotedMessage) return reply("↩️ Reply to the message you want to forward, then run:\n.forward <jid>");
       if (!q) return reply("📌 Give me a target chat.\nPerson: .forward 94771234567@s.whatsapp.net\nGroup: .forward 120363012345678901@g.us");
 
       const targetJid = q.trim();
-      const quotedMsg = { key: quoted.key, message: quoted.message };
+      const quotedKey = { remoteJid: from, id: ctx.stanzaId, participant: ctx.participant, fromMe: false };
+      const quotedFull = { key: quotedKey, message: ctx.quotedMessage };
 
-      await bot.forwardMessage(targetJid, quotedMsg, true);
+      await bot.forwardMessage(targetJid, quotedFull, true);
       await reply(`✅ Forwarded to ${targetJid}`);
     } catch (e) {
       console.log("FORWARD ERROR:", e);
